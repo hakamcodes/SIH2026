@@ -1,0 +1,44 @@
+{
+  "_schema_note": "Not yet consumed by the rule engine (each CompiledRule.citation_verified in lmd_rules.v1.json is the load-bearing flag rendered by the UI/report per CLAUDE.md invariant 10). This file is the canonical citation registry those per-rule flags should eventually be validated against, and the place to record citations that must NEVER be used, per CLAUDE.md section 4.2.",
+  "verified_citations": [
+    {
+      "citation": "Legal Metrology (Packaged Commodities) Rules, 2011, Rule 5 and the Second Schedule",
+      "verified": true,
+      "used_by_rules": ["LM-M04a", "LM-M04b"]
+    },
+    {
+      "citation": "Legal Metrology Act, 2009, Section 18(2)",
+      "verified": true,
+      "used_by_rules": ["LM-X04"]
+    },
+    {
+      "citation": "Jan Vishwas (Amendment of Provisions) Act, 2023 (Act 19 of 2023)",
+      "verified": true,
+      "note": "Notified in stages, late 2023 to mid-2024. Not 'Jan Vishwas Act 2026' and not effective 2026-05-01 -- that framing in earlier research drafts was wrong (CLAUDE.md section 4.2)."
+    },
+    {
+      "citation": "Section 15(4), Legal Metrology Act 2009, read with the Bharatiya Nagarik Suraksha Sanhita (BNSS) 2023",
+      "verified": true,
+      "note": "The real requirement behind the reason-to-believe gate: searches and seizures require reasons to believe recorded in writing beforehand.",
+      "used_by": ["reason-to-believe hard gate, CLAUDE.md invariant 12"]
+    },
+    {
+      "citation": "Section 63, Bharatiya Sakshya Adhiniyam 2023",
+      "verified": true,
+      "note": "Replaced Evidence Act s.65B on 2024-07-01. An electronic record needs a signed, timestamped certificate identifying the device, the production process, and the record's integrity to be certifiable -- not automatically court-proven.",
+      "used_by": ["lmd.evidence.bsa63"]
+    }
+  ],
+  "do_not_cite": [
+    {
+      "citation": "ITC Ltd. v. State of Karnataka (2025 INSC 1111)",
+      "verified": false,
+      "reason": "Simulated/fabricated case citation identified during research red-teaming (research/NotebookLM/legal-claim-audit.md). Does not exist as real precedent. Never surface this citation anywhere in the product."
+    },
+    {
+      "citation": "CCPA 2025 Radio Equipment Guidelines",
+      "verified": false,
+      "reason": "Simulated/fabricated citation identified during research red-teaming. Does not exist. Never surface this citation anywhere in the product."
+    }
+  ]
+}

@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lmd.local/schema/extraction.v1.schema.json",
+  "title": "ExtractionEnvelope v1.0",
+  "description": "Mirrors backend/lmd/extraction/contract.py:ExtractionEnvelope exactly. This is the canonical nested shape (CLAUDE.md section 6) that all 24+ rule conditions address via dotted paths (net_quantity.value, mrp.value, commodity.is_exempt, ...). Every field is optional -- absence means 'not extracted', never a fabricated value. Keep in lockstep with contract.py; this file is documentation/validation, not the source of truth (the Pydantic model is).",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "scan_source": { "type": ["string", "null"] },
+    "scan_date": { "type": ["string", "null"], "format": "date" },
+    "commodity": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "category": { "type": ["string", "null"] },
+        "subtype": { "type": ["string", "null"] },
+        "is_imported": { "type": ["boolean", "null"] },
+        "is_exempt": { "type": ["boolean", "null"] }
+      }
+    },
+    "net_quantity": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": ["number", "null"] },
+        "unit": { "type": ["string", "null"] }
+      }
+    },
+    "mrp": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": ["number", "null"] },
+        "currency_marker": { "type": ["string", "null"] },
+        "raw_text": { "type": ["string", "null"] },
+        "computed_value": { "type": ["number", "null"] }
+      }
+    },
+    "mrp_candidates": {
+      "type": ["array", "null"],
+      "items": { "type": "number" }
+    },
+    "sticker_detected": { "type": ["boolean", "null"] },
+    "original_mrp": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": ["number", "null"] },
+        "is_visible": { "type": ["boolean", "null"] }
+      }
+    },
+    "sticker": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "mrp_value": { "type": ["number", "null"] },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "usp_declared": { "type": ["number", "null"] },
+    "mfg_date": { "type": ["string", "null"], "format": "date" },
+    "best_before_date": { "type": ["string", "null"], "format": "date" },
+    "use_by_date": { "type": ["string", "null"], "format": "date" },
+    "expiry_date": { "type": ["string", "null"], "format": "date" },
+    "manufacturer_or_packer_or_importer": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "address": { "type": ["string", "null"] }
+      }
+    },
+    "common_or_generic_name": { "type": ["string", "null"] },
+    "brand_name": { "type": ["string", "null"] },
+    "consumer_care": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "phone": { "type": ["string", "null"] },
+        "email": { "type": ["string", "null"] }
+      }
+    },
+    "country_of_origin": { "type": ["string", "null"] },
+    "dimensions": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "length": { "type": ["number", "null"] },
+        "width": { "type": ["number", "null"] }
+      }
+    },
+    "mfg_or_pack_or_import_month_year": { "type": ["string", "null"] },
+    "field_confidences": {
+      "type": ["object", "null"],
+      "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+    },
+    "panel_a": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "net_quantity": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "value": { "type": ["number", "null"] },
+            "unit": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "panel_b": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "net_quantity": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "value": { "type": ["number", "null"] },
+            "unit": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "ocr_pipeline": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "numeric_val": { "type": ["number", "null"] },
+        "text_val": { "type": ["string", "null"] }
+      }
+    },
+    "llm_pipeline": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "numeric_val": { "type": ["number", "null"] },
+        "text_val": { "type": ["string", "null"] }
+      }
+    },
+    "listing_data": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "net_quantity": { "type": ["string", "null"] },
+        "country_of_origin": { "type": ["string", "null"] },
+        "manufacturer_name": { "type": ["string", "null"] },
+        "price": { "type": ["number", "null"] }
+      }
+    },
+    "package_ocr_data": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "net_quantity": { "type": ["string", "null"] },
+        "country_of_origin": { "type": ["string", "null"] },
+        "manufacturer_name": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

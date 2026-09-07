@@ -1,0 +1,69 @@
+{
+  "_schema_note": "Reference data only -- not yet consumed by the rule engine's DSL (no get_exemption_threshold() registry function exists; wiring this in is future work, not done in this pass, since two of these thresholds are not yet confirmed against the actual gazette). commodity.is_exempt in the extraction contract is currently set upstream of the engine (e.g. by the API caller / CV commodity classifier), not derived from this file.",
+  "exemptions": [
+    {
+      "id": "EXEMPT-01",
+      "description": "Net quantity <=10 g or <=10 ml is fully exempt from Legal Metrology (Packaged Commodities) Rules labeling.",
+      "source": "research/mainResearch/Product Categories, Exceptions & Decision Logic.docx, cited therein as 'LMPC Rule 26(a)'",
+      "citation_verified": false,
+      "note": "The docx's own 'Rule 26(a)' citation is unconfirmed against the actual gazette -- CLAUDE.md flags this research set as containing simulated/uncertain citations elsewhere, so this one is not trusted until independently verified."
+    },
+    {
+      "id": "EXEMPT-02",
+      "description": "Net quantity 10-20 g/ml: proviso -- MRP and net quantity must still be shown even though otherwise exempt.",
+      "source": "research/mainResearch/Product Categories, Exceptions & Decision Logic.docx",
+      "citation_verified": false
+    },
+    {
+      "id": "EXEMPT-03",
+      "description": "Packaged fast food sold by hotels/restaurants for immediate consumption: exempt from MRP/net-weight declaration.",
+      "source": "research/mainResearch/Product Categories, Exceptions & Decision Logic.docx",
+      "citation_verified": false
+    },
+    {
+      "id": "EXEMPT-04",
+      "description": "Scheduled medicines under the Drugs (Prices Control) Order (DPCO): exempt from LMPC labeling.",
+      "source": "research/mainResearch/Product Categories, Exceptions & Decision Logic.docx",
+      "citation_verified": false
+    },
+    {
+      "id": "EXEMPT-05",
+      "description": "Agricultural produce packages exceeding 50 kg: exempt.",
+      "source": "research/mainResearch/Product Categories, Exceptions & Decision Logic.docx",
+      "citation_verified": false
+    },
+    {
+      "id": "EXEMPT-06",
+      "description": "Loose (non-prepackaged) garments/goods are not a 'pre-packaged commodity' -- LMPC declarations not required; advisory-only tagging (name, size, MRP, maker) recommended.",
+      "source": "research/mainResearch/Product Categories, Exceptions & Decision Logic.docx",
+      "citation_verified": false
+    },
+    {
+      "id": "EXEMPT-07",
+      "description": "LPG cylinders: no manufacturing month-year and no retail-price declaration required.",
+      "source": "research/mainResearch/Product Categories, Exceptions & Decision Logic.docx",
+      "citation_verified": true,
+      "note": "Already load-bearing and in production use: packages/rules/lmd_rules.v1.json rule LM-C05's applicable_when excludes commodity.category == 'lpg_cylinder' from the manufacturing-date completeness check."
+    },
+    {
+      "id": "EXEMPT-08",
+      "description": "Bidi and incense sticks: no manufacturing-date declaration required.",
+      "source": "research/mainResearch/Product Categories, Exceptions & Decision Logic.docx",
+      "citation_verified": true,
+      "note": "Already load-bearing: LM-C05's applicable_when also excludes commodity.category IN ['bidi', 'incense_sticks']."
+    },
+    {
+      "id": "EXEMPT-09",
+      "description": "Wholesale packages (cartons of multiple retail units) only need manufacturer/importer identity, commodity identity, and total count or weight -- not full retail declarations.",
+      "source": "research/mainResearch/Product Categories, Exceptions & Decision Logic.docx",
+      "citation_verified": false
+    },
+    {
+      "id": "EXEMPT-10",
+      "description": "Alcoholic beverages: Legal Metrology price/date declaration rules are not enforced (governed by excise law instead).",
+      "source": "research/mainResearch/Product Categories, Exceptions & Decision Logic.docx",
+      "citation_verified": true,
+      "note": "Already load-bearing: LM-C02's applicable_when excludes commodity.category == 'alcoholic_beverage'."
+    }
+  ]
+}

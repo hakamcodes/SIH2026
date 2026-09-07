@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lmd.local/schema/rules.schema.json",
+  "title": "LMD compliance rule",
+  "description": "One entry in packages/rules/lmd_rules.v1.json. Every condition/applicable_when string must be a normalize()+compile_condition()-loadable DSL expression -- see backend/lmd/dsl/. This schema validates rule metadata shape only; it cannot validate DSL syntax, which is enforced at load time by backend/lmd/engine/loader.py (a rule file that fails the DSL whitelist refuses to load, per CLAUDE.md invariant 3).",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "rule_id",
+      "category",
+      "description",
+      "legal_basis",
+      "effective_from",
+      "effective_to",
+      "applicable_when",
+      "condition",
+      "severity",
+      "on_fail_code",
+      "min_field_confidence"
+    ],
+    "properties": {
+      "rule_id": {
+        "type": "string",
+        "pattern": "^LM-[A-Z][0-9]{2}[a-z]?$",
+        "description": "e.g. LM-C01, LM-M04a. Must be unique within the file."
+      },
+      "category": {
+        "type": "string",
+        "enum": ["COMPLETENESS", "FORMAT", "MATH", "CONFLICT", "TEMPORAL", "UNCERTAINTY"]
+      },
+      "description": { "type": "string", "minLength": 1 },
+      "legal_basis": { "type": "string", "minLength": 1 },
+      "effective_from": { "type": "string", "format": "date" },
+      "effective_to": { "type": ["string", "null"], "format": "date" },
+      "applicable_when": { "type": "string", "minLength": 1 },
+      "condition": { "type": "string", "minLength": 1 },
+      "severity": {
+        "type": "string",
+        "enum": ["BLOCKER", "MAJOR", "MINOR", "DIAGNOSTIC"]
+      },
+      "on_fail_code": {
+        "type": ["string", "null"],
+        "enum": [
+          "MISSING_DECLARATION",
+          "INVALID_FORMAT",
+          "MATH_MISMATCH",
+          "NON_STANDARD_SIZE",
+          "CONFLICTING_DECLARATION",
+          "INVALID_REVISION",
+          "OVERCHARGING_MRP",
+          "STALE_RULESET",
+          "NEEDS_REVIEW",
+          null
+        ]
+      },
+      "min_field_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+      "confidence_policy": {
+        "type": "string",
+        "enum": ["standard", "structural"],
+        "default": "standard",
+        "description": "structural rules bypass the min_field_confidence gate entirely (CLAUDE.md invariant 5)."
+      },
+      "citation_verified": {
+        "type": "boolean",
+        "default": true,
+        "description": "false renders the citation greyed and tagged 'illustrative' in the UI (CLAUDE.md invariant 10)."
+      },
+      "exempt_from_effective_gate": {
+        "type": "boolean",
+        "default": false,
+        "description": "Only true for LM-T01, whose own job is to test the ruleset's effective window -- see its _fixture_notes."
+      },
+      "_fixture_notes": {
+        "type": "string",
+        "description": "Free-text audit trail for a deliberate correction made when porting from research/NotebookLM/rule_engine.py. Not read by the loader."
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+rapidocr==3.9.2
+onnxruntime>=1.19
+opencv-python==4.12.0.88
+pydantic>=2.6,<3
+fastapi>=0.110
+uvicorn[standard]>=0.29
+reportlab>=4.1
+qrcode>=7.4
+numpy>=2.1
+anthropic>=0.40
+python-dotenv>=1.0
+python-multipart>=0.0.9

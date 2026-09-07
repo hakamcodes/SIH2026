@@ -1,0 +1,665 @@
+[
+  {
+    "test_case_id": "TC-001",
+    "scenario_name": "Standard Compliant Biscuit Pack (Standard Size)",
+    "description": "Standard domestic retail food item with standard size of 500g and mathematically matching USP [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 500.0,
+        "unit": "g"
+      },
+      "mrp": {
+        "value": 100.0,
+        "currency_marker": "\u20b9",
+        "raw_text": "MRP Rs. 100.00 incl. of all taxes"
+      },
+      "usp_declared": 0.2,
+      "mfg_date": "2026-08-01",
+      "manufacturer_or_packer_or_importer": {
+        "name": "Suryoday Foods Pvt. Ltd.",
+        "address": "Plot 42, Hinjewadi Phase 3, Pune, MH, 411057"
+      },
+      "common_or_generic_name": "Masala Biscuits",
+      "brand_name": "Suryoday Premium",
+      "consumer_care": {
+        "phone": "+91-20-12345678",
+        "email": "care@suryodayfoods.com"
+      }
+    },
+    "expected_verdict": "COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-C01",
+      "LM-C02",
+      "LM-C03",
+      "LM-C05",
+      "LM-C06",
+      "LM-C07",
+      "LM-F01",
+      "LM-F02",
+      "LM-F03",
+      "LM-F04",
+      "LM-F05",
+      "LM-F07",
+      "LM-M01"
+    ]
+  },
+  {
+    "test_case_id": "TC-002",
+    "scenario_name": "Missing Maximum Retail Price (MRP)",
+    "description": "Product package scanned but MRP field is completely missing [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 500.0,
+        "unit": "g"
+      },
+      "mrp": {
+        "value": null,
+        "currency_marker": null,
+        "raw_text": null
+      },
+      "mfg_date": "2026-08-01",
+      "manufacturer_or_packer_or_importer": {
+        "name": "Suryoday Foods Pvt. Ltd.",
+        "address": "Pune, MH, 411057"
+      }
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-C02"
+    ],
+    "failure_details": {
+      "on_fail_code": "MISSING_DECLARATION",
+      "severity": "BLOCKER",
+      "field": "mrp"
+    }
+  },
+  {
+    "test_case_id": "TC-003",
+    "scenario_name": "Missing Net Quantity",
+    "description": "Product has MRP but Net Quantity is missing or smudged beyond capture [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": null,
+        "unit": null
+      },
+      "mrp": {
+        "value": 100.0,
+        "currency_marker": "\u20b9",
+        "raw_text": "MRP Rs. 100.00 incl."
+      },
+      "mfg_date": "2026-08-01",
+      "manufacturer_or_packer_or_importer": {
+        "name": "Suryoday Foods Pvt. Ltd.",
+        "address": "Pune, MH, 411057"
+      }
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-C01"
+    ],
+    "failure_details": {
+      "on_fail_code": "MISSING_DECLARATION",
+      "severity": "BLOCKER",
+      "field": "net_quantity"
+    }
+  },
+  {
+    "test_case_id": "TC-004",
+    "scenario_name": "Non-Standard Net Quantity Unit",
+    "description": "Package specifies weight in imperial 'lbs' instead of metric 'g' or 'kg' [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 1.1,
+        "unit": "lbs"
+      },
+      "mrp": {
+        "value": 100.0,
+        "currency_marker": "\u20b9",
+        "raw_text": "MRP Rs. 100.00 incl. of all taxes"
+      }
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-F01"
+    ],
+    "failure_details": {
+      "on_fail_code": "INVALID_FORMAT",
+      "severity": "BLOCKER",
+      "field": "net_quantity.unit"
+    }
+  },
+  {
+    "test_case_id": "TC-005",
+    "scenario_name": "Unit Sale Price (USP) Mathematical Mismatch",
+    "description": "Declared USP is \u20b90.25/g, but calculated USP is \u20b950 / 250g = \u20b90.20/g [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 250.0,
+        "unit": "g"
+      },
+      "mrp": {
+        "value": 50.0,
+        "currency_marker": "\u20b9",
+        "raw_text": "MRP Rs. 50.00 incl."
+      },
+      "usp_declared": 0.25
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-M01"
+    ],
+    "failure_details": {
+      "on_fail_code": "MATH_MISMATCH",
+      "severity": "BLOCKER",
+      "field": "usp_declared"
+    }
+  },
+  {
+    "test_case_id": "TC-006",
+    "scenario_name": "Correct MRP Price Rounding (Down)",
+    "description": "MRP calculated as \u20b947.30, and rounded down to \u20b947.00 per standard rounding [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "mrp": {
+        "value": 47.0,
+        "computed_value": 47.3,
+        "currency_marker": "\u20b9"
+      }
+    },
+    "expected_verdict": "COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-M03"
+    ]
+  },
+  {
+    "test_case_id": "TC-007",
+    "scenario_name": "Invalid MRP Price Rounding",
+    "description": "MRP calculated as \u20b947.70, which should round to \u20b947.50, but is wrongly rounded up to \u20b948.00 [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "mrp": {
+        "value": 48.0,
+        "computed_value": 47.7,
+        "currency_marker": "\u20b9"
+      }
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-M03"
+    ],
+    "failure_details": {
+      "on_fail_code": "MATH_MISMATCH",
+      "severity": "MAJOR",
+      "field": "mrp.value"
+    }
+  },
+  {
+    "test_case_id": "TC-008",
+    "scenario_name": "Multi-MRP Dual Pricing Detected",
+    "description": "Two distinct printed MRPs (\u20b9120 and \u20b9150) found on package images, and no sticker revision [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "mrp_candidates": [
+        120.0,
+        150.0
+      ],
+      "sticker_detected": false
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-X01"
+    ],
+    "failure_details": {
+      "on_fail_code": "CONFLICTING_DECLARATION",
+      "severity": "BLOCKER",
+      "field": "mrp_candidates"
+    }
+  },
+  {
+    "test_case_id": "TC-009",
+    "scenario_name": "Valid Stickered MRP Reduction",
+    "description": "Original printed MRP is \u20b9100; a sticker revised it down to \u20b995, and original MRP remains visible [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "sticker_detected": true,
+      "original_mrp": {
+        "value": 100.0,
+        "is_visible": true
+      },
+      "sticker": {
+        "mrp_value": 95.0,
+        "reason": "Festive season discount"
+      }
+    },
+    "expected_verdict": "COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-X02"
+    ]
+  },
+  {
+    "test_case_id": "TC-010",
+    "scenario_name": "Invalid Stickered MRP Revision (Original Obscured)",
+    "description": "Sticker applied but original printed MRP is completely obscured and illegible [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "sticker_detected": true,
+      "original_mrp": {
+        "value": 100.0,
+        "is_visible": false
+      },
+      "sticker": {
+        "mrp_value": 105.0,
+        "reason": "GST Revision"
+      }
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-X02"
+    ],
+    "failure_details": {
+      "on_fail_code": "INVALID_REVISION",
+      "severity": "BLOCKER",
+      "field": "original_mrp"
+    }
+  },
+  {
+    "test_case_id": "TC-011",
+    "scenario_name": "Low OCR Field Confidence",
+    "description": "Net quantity is smudged and has low OCR confidence, forcing manual human review [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 500.0,
+        "unit": "g"
+      },
+      "field_confidences": {
+        "net_quantity": 0.41
+      }
+    },
+    "expected_verdict": "NEEDS_REVIEW",
+    "expected_triggered_rules": [
+      "LM-U01"
+    ],
+    "failure_details": {
+      "on_fail_code": "NEEDS_REVIEW",
+      "severity": "BLOCKER",
+      "field": "net_quantity"
+    }
+  },
+  {
+    "test_case_id": "TC-012",
+    "scenario_name": "Cross-Panel Quantity Mismatch",
+    "description": "Front panel claims '500 g' net quantity while the back panel says '600 g' (or '0.6 kg') [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "panel_a": {
+        "net_quantity": {
+          "value": 500.0,
+          "unit": "g"
+        }
+      },
+      "panel_b": {
+        "net_quantity": {
+          "value": 0.6,
+          "unit": "kg"
+        }
+      }
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-M02"
+    ],
+    "failure_details": {
+      "on_fail_code": "MATH_MISMATCH",
+      "severity": "BLOCKER",
+      "field": "panel_net_quantity"
+    }
+  },
+  {
+    "test_case_id": "TC-013",
+    "scenario_name": "Valid Imported Product with Origin Displayed",
+    "description": "Imported item with 'Made in Vietnam' country of origin properly declared [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "electronics",
+        "subtype": "earbuds",
+        "is_imported": true,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 1.0,
+        "unit": "N"
+      },
+      "mrp": {
+        "value": 1999.0,
+        "currency_marker": "\u20b9"
+      },
+      "country_of_origin": "Vietnam"
+    },
+    "expected_verdict": "COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-C04",
+      "LM-F06"
+    ]
+  },
+  {
+    "test_case_id": "TC-014",
+    "scenario_name": "Missing Country of Origin on Imported Product",
+    "description": "Product is imported (manufacturer details indicate Vietnam) but Country of Origin is omitted [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "electronics",
+        "subtype": "earbuds",
+        "is_imported": true,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 1.0,
+        "unit": "N"
+      },
+      "mrp": {
+        "value": 1999.0,
+        "currency_marker": "\u20b9"
+      },
+      "country_of_origin": null
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-C04"
+    ],
+    "failure_details": {
+      "on_fail_code": "MISSING_DECLARATION",
+      "severity": "BLOCKER",
+      "field": "country_of_origin"
+    }
+  },
+  {
+    "test_case_id": "TC-015",
+    "scenario_name": "OCR vs. Text-Parse Extractor Disagreement",
+    "description": "Primary OCR reads price \u20b9299 while listing text parser reads \u20b9290, forcing triage [89].",
+    "input_data": {
+      "scan_source": "package_image",
+      "ocr_pipeline": {
+        "numeric_val": 299.0
+      },
+      "llm_pipeline": {
+        "numeric_val": 290.0
+      }
+    },
+    "expected_verdict": "NEEDS_REVIEW",
+    "expected_triggered_rules": [
+      "LM-U02"
+    ],
+    "failure_details": {
+      "on_fail_code": "NEEDS_REVIEW",
+      "severity": "BLOCKER",
+      "field": "extractor_consistency"
+    }
+  },
+  {
+    "test_case_id": "TC-016",
+    "scenario_name": "Perishable Yogurt Cup Missing Expiry Date",
+    "description": "Yogurt cup (food category) is perishable but lacks Best Before or Use By date declaration under Rule 6(1)(da) [88, 140].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "yogurt",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 150.0,
+        "unit": "g"
+      },
+      "mrp": {
+        "value": 25.0,
+        "currency_marker": "\u20b9",
+        "raw_text": "MRP \u20b9 25.00 incl. of all taxes"
+      },
+      "mfg_date": "2026-08-01",
+      "best_before_date": null,
+      "use_by_date": null
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-C08"
+    ],
+    "failure_details": {
+      "on_fail_code": "MISSING_DECLARATION",
+      "severity": "MAJOR",
+      "field": "best_before_date"
+    }
+  },
+  {
+    "test_case_id": "TC-017",
+    "scenario_name": "Packaged Textile Bed-Sheet Missing Dimensions",
+    "description": "Packaged double bed-sheet (textile category) is sold but lacks finished dimensions length and width under Rule 6(1)(f) [37, 140].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "textile",
+        "subtype": "bedsheet",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 1.0,
+        "unit": "pcs"
+      },
+      "mrp": {
+        "value": 1299.0,
+        "currency_marker": "\u20b9",
+        "raw_text": "MRP \u20b9 1299.00 incl. of all taxes"
+      },
+      "dimensions": {
+        "length": null,
+        "width": null
+      }
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-C09"
+    ],
+    "failure_details": {
+      "on_fail_code": "MISSING_DECLARATION",
+      "severity": "MAJOR",
+      "field": "dimensions"
+    }
+  },
+  {
+    "test_case_id": "TC-018",
+    "scenario_name": "Non-Standard Biscuit Pack Size Without USP",
+    "description": "Scheduled biscuit pack is sold in a non-standard weight size of 120g (violating Rule 5 standard sizes [30]) and fails to declare the Unit Sale Price (USP) [81, 140].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 120.0,
+        "unit": "g"
+      },
+      "mrp": {
+        "value": 30.0,
+        "currency_marker": "\u20b9"
+      },
+      "usp_declared": null
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-M04"
+    ],
+    "failure_details": {
+      "on_fail_code": "MISSING_DECLARATION",
+      "severity": "MAJOR",
+      "field": "usp_declared"
+    }
+  },
+  {
+    "test_case_id": "TC-019",
+    "scenario_name": "Stale Ruleset Scan Pre-2011 Act",
+    "description": "Scan event executed with a historical timestamp (2010-05-15) which is prior to the ruleset's legal effective date of 2011-04-01 [121]. Forces engine rejection under rule LM-T01 [83].",
+    "input_data": {
+      "scan_source": "package_image",
+      "scan_date": "2010-05-15",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "net_quantity": {
+        "value": 100.0,
+        "unit": "g"
+      },
+      "mrp": {
+        "value": 20.0,
+        "currency_marker": "\u20b9"
+      }
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-T01"
+    ],
+    "failure_details": {
+      "on_fail_code": "STALE_RULESET",
+      "severity": "BLOCKER",
+      "field": "ruleset"
+    }
+  },
+  {
+    "test_case_id": "TC-020",
+    "scenario_name": "Invalid Temporal Order (Mfg Date After Best Before)",
+    "description": "Package shows an impossible temporal order: manufacturing date is printed as 2026-09-01 while best before date is 2026-06-01 [83, 140]. Fails Rule LM-T02 [83].",
+    "input_data": {
+      "scan_source": "package_image",
+      "commodity": {
+        "category": "food",
+        "subtype": "biscuits",
+        "is_imported": false,
+        "is_exempt": false
+      },
+      "mfg_date": "2026-09-01",
+      "best_before_date": "2026-06-01"
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-T02"
+    ],
+    "failure_details": {
+      "on_fail_code": "INVALID_FORMAT",
+      "severity": "MAJOR",
+      "field": "mfg_date"
+    }
+  },
+  {
+    "test_case_id": "TC-021",
+    "scenario_name": "Listing vs Package Country of Origin Discrepancy",
+    "description": "Online e-commerce listing claims origin is 'India', but the OCR extraction of the physical label reads 'Made in Vietnam' [140]. Fails consistency under Rule 6(10) / Rule LM-X03 [82, 140].",
+    "input_data": {
+      "scan_source": "package_image",
+      "listing_data": {
+        "net_quantity": "250 g",
+        "country_of_origin": "India",
+        "manufacturer_name": "Suryoday Foods"
+      },
+      "package_ocr_data": {
+        "net_quantity": "250 g",
+        "country_of_origin": "Vietnam",
+        "manufacturer_name": "Suryoday Foods"
+      }
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-X03"
+    ],
+    "failure_details": {
+      "on_fail_code": "CONFLICTING_DECLARATION",
+      "severity": "BLOCKER",
+      "field": "country_of_origin"
+    }
+  },
+  {
+    "test_case_id": "TC-022",
+    "scenario_name": "E-Commerce Checkout Price Exceeds MRP",
+    "description": "Digital checkout listing offers product at active selling price of \u20b9160.00, whereas the printed package MRP is \u20b9150.00 [3, 140]. Direct breach of Section 18(2) / Rule LM-X04 [82, 140].",
+    "input_data": {
+      "scan_source": "package_image",
+      "mrp": {
+        "value": 150.0,
+        "currency_marker": "\u20b9"
+      },
+      "listing_data": {
+        "price": 160.0
+      }
+    },
+    "expected_verdict": "NON_COMPLIANT",
+    "expected_triggered_rules": [
+      "LM-X04"
+    ],
+    "failure_details": {
+      "on_fail_code": "OVERCHARGING_MRP",
+      "severity": "BLOCKER",
+      "field": "price_online"
+    }
+  }
+]

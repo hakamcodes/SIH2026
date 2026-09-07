@@ -1,0 +1,5 @@
+{
+  "status": "UNVERIFIED_SOURCE",
+  "tables": {},
+  "_note": "Rule 7 Tables I and II (minimum character-height thresholds in millimetres by pack size) appear in no research file in this repository (CLAUDE.md section 5, defect list, and section 12 outstanding data tasks). Do not invent these thresholds. Any rule that would need them must return NOT_EVALUABLE with this file's status surfaced as the reason (CLAUDE.md invariant 10), never a fabricated numeric legal threshold. Populate `tables` only from the actual gazette text of the Legal Metrology (Packaged Commodities) Rules, 2011, Rule 7."
+}

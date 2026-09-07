@@ -1,0 +1,103 @@
+# Legal Rules & Compliance Matrix — Legal Metrology (Packaged Commodities) Rules, 2011
+### SIH PS 2634 — Legal Master Database (v1.0, compiled September 2026)
+
+**Governing framework:** Legal Metrology Act, 2009 (Act No. 1 of 2010) → Section 52 rule-making power → Legal Metrology (Packaged Commodities) Rules, 2011 (GSR 202(E), dated 7 March 2011, in force 1 April 2011), as amended in **2011, 2013, 2017, 2021, 2022 (twice), 2023, 2025, and 2026**. Administered by the Legal Metrology Division, Department of Consumer Affairs, Ministry of Consumer Affairs, Food & Public Distribution.
+
+**Scope note for the system:** These Rules apply to every "pre-packaged commodity" intended for retail sale in India — physical shelf and **e-commerce listings alike** (Rule 6(10), inserted 2017). Food articles, cosmetics, drugs, and medical devices are carved out of specific sub-clauses in favour of their own labelling laws (FSSAI, Drugs & Cosmetics Rules, Medical Devices Rules) — this matters for your system because it means "missing declaration" is not always a violation; it may be a valid carve-out.
+
+---
+
+## 1. Core Compliance Matrix
+
+| # | Rule | Requirement | Applies To | Exception | Validation Logic (for automated checker) | Source |
+|---|------|-------------|------------|-----------|-------------------------------------------|--------|
+| 1 | **Rule 2(k), Rule 3, Rule 26** | Definition of "retail package" and scope of Chapter II (the chapter carrying almost all mandatory declarations) | All packages sold to an "ultimate consumer" | (a) Packs >25 kg/25 L (>50 kg for cement/fertilizer bags); (b) sold to institutional/industrial consumers (hotels, hospitals, airlines, factories buying direct from manufacturer); (c) net qty ≤10 g/10 ml (except tobacco); (d) restaurant/hotel fast-food packs; (e) scheduled/non-scheduled drugs under DPCO 1995; (f) farm produce >50 kg; (g) handloom-weaver thread coils | Flag SKU as "out of scope" if category = institutional/industrial, or declared net qty ≤10g/ml, or category ∈ {drugs, farm produce >50kg, restaurant food} | Rules 3 & 26, LM(PC) Rules 2011 |
+| 2 | **Rule 4** | No person may pre-pack/sell any commodity unless the package bears the required declarations | All retail packages | None (baseline prohibition) | If ANY mandatory field (rows 3–14 below) is missing → flag non-compliant listing | Rule 4, LM(PC) Rules 2011 |
+| 3 | **Rule 6(1)(a)** | Name & complete address of manufacturer; if manufacturer ≠ packer, both names; for imports, name & address of importer | Every package/listing | Food articles → FSSAI rules apply instead; ≤5 cm³ packs need only an identifying mark | Field must be non-empty text ≥1 registered-entity name + full postal address (street/PIN); flag generic terms like "Marketed by XYZ" without a manufacturer name per Explanation I/II | Rule 6(1)(a) + Explanations I–III |
+| 4 | **Rule 6(1)(a) proviso / 2017 Amendment** | **Country of origin, manufacture or assembly** must be declared for imported products | Imported packaged commodities (and, per DGFT/DoCA e-commerce enforcement practice, every SKU sold via marketplaces) | Waived only where another specific law already mandates it | Field must contain a valid ISO country name/"Made in ___"; flag blank field on any listing tagged "imported" or lacking domestic GST/manufacturer registration | LM(PC) Amendment Rules 2017 (GSR 629(E), 23 June 2017, in force 1 Jan 2018) |
+| 5 | **Rule 6(1)(b)** | Common/generic name of the commodity; if the package has >1 product, name & quantity of each | Every package | — | Non-empty text field distinct from brand name; for multi-item packs, count of named items must match physical/declared item count | Rule 6(1)(b) |
+| 6 | **Rule 6(1)(c), Rules 11–13** | **Net quantity** in standard SI unit (weight/volume/number/length/area); no misleading qualifiers ("about", "minimum", "approx.") | Every package | Rule 11(4)/Third Schedule: soaps, lotions, creams (excl. milk cream), camphor may add "when packed" | Numeric value + unit ∈ {g, kg, ml, l, cm, m, N/U}; regex-reject qualifier words; cross-check declared unit matches Fourth-Schedule prescribed unit for that commodity category | Rules 6(1)(c), 11, 12, 13 |
+| 7 | **Rule 6(1)(d)** | **Month & year** of manufacture, pre-packing or import | Every package | Not required on bidis, incense sticks, domestic LPG cylinders (14.2 kg/5 kg PSU); food with shelf life ≤90 days uses Best-Before only | Date field must parse to a valid MM/YYYY not later than the listing date | Rule 6(1)(d) |
+| 8 | **Rule 6(1)(da)** | **"Best before"/"Use by" date, month & year** for commodities that may become unfit for human consumption | Perishable/consumable commodities | Waived if another law (FSSAI) already covers it | Mandatory field for category = food/beverage/health-consumption; must be a future date relative to Mfg. date | Inserted by GSR 629(E), 23 June 2017, in force 1 Jan 2018 |
+| 9 | **Rule 6(1)(e)** | **Retail Sale Price (MRP)**, inclusive of all taxes, in the exact form "MRP Rs. ___ incl. of all taxes" | Every package | Alcoholic beverages/spirits → State Excise law governs unless silent; domestic LPG under Administrative Price Mechanism; bidis exempted | Regex match `(MRP|Maximum Retail Price)\s*(Rs\.?|₹|INR)\s*[0-9]+(\.[0-9]{1,2})?` with "inclusive of all taxes" substring; value must be >0 and ≤2 decimal places | Rule 6(1)(e); Rule 2(m) |
+| 10 | **Rule 6(1)(e) — Unit Sale Price (USP)** | Declare price per standard unit (₹ per g/kg/ml/L/cm/m/number), placed near the MRP, rounded to 2 decimals | Pre-packaged commodities sold by weight/measure/number, above prescribed thresholds | **Not required** for Combination Packages, Group Packages, or Multi-Piece Packages (Rule 2(ka)/(kb)/(kc)) | Cross-validate: USP × declared net quantity ≈ MRP (within rounding tolerance); flag mismatch as potential mis-declaration | Introduced 2017 Amendment; operationalised by 2021 Amendment (GSR, 2 Nov 2021, effective 1 Apr 2022); clarified by 2022 Amendment (rounding rule, effective 1 Oct 2022); USP exemptions added by 2023 Amendment (effective 1 Jan 2024) |
+| 11 | **Rule 6(1)(f)** | Dimensions of the commodity, where size is relevant to price (e.g., textiles, sheets) | Bed-sheets, sarees, towels, napkins, tablecloths, sheet-type commodities (Rules 14–17) | Not applicable where size is not price-relevant | If category ∈ {textile, sheet-goods}, dimension field must be present with unit cm/m | Rules 6(1)(f), 14–17 |
+| 12 | **Rule 6(2)** | **Consumer-care details**: name, address, telephone number, and e-mail (if available) of the grievance contact | Every package | None | Field must contain ≥1 contact channel (phone regex `\+?91?[-\s]?\d{10}` OR valid e-mail regex) plus an address | Rule 6(2) |
+| 13 | **Rule 6(3)–(6)** | No individual "correction stickers" allowed except a lower-MRP sticker (which must not obscure the original manufacturer's declaration) | Every package | Stickers permitted for non-mandatory info | Image-analysis flag: sticker detected over MRP/net-qty zone that *raises* price, or obscures other mandatory fields | Rule 6(3)–(6) |
+| 14 | **Rule 6(10)** | **E-commerce entities** must display all Rule 6(1) declarations (name/address of mfr-packer-importer, country of origin, generic name, net quantity, MRP, best-before/mfg. date, consumer care) on the digital listing itself — *except* month/year of packing need not be shown online | Every SKU listed for sale on a digital/electronic marketplace (marketplace or inventory model) | Marketplace intermediary is not liable if it merely provides a passive communication channel, does not select/modify content, and observes IT Act, 2000 due-diligence (safe-harbour test) | This is the **primary rule your compliance-checker enforces**: scrape listing page → verify presence of fields in rows 3, 4(COO), 5, 6, 8, 9, 12 above → flag missing fields per SKU/seller/platform | Inserted by LM(PC) Amendment Rules, 2017 (GSR 629(E)); reaffirmed in DoCA enforcement notices to Amazon/Flipkart/Meesho (2020–2026) |
+| 15 | **Rule 7** | Principal Display Panel (PDP) sizing + minimum numeral height for MRP/net-qty (1–6 mm depending on pack size, doubled if blown/molded/embossed) | Physical packaging (not directly applicable to e-commerce screen display, but relevant to product images used as listings) | Waived if another law prescribes the info | For product-image-based checks: OCR-detected MRP/net-qty text height ratio vs. image resolution flagged only as a secondary/manual-review signal, not a hard reject | Rule 7 + Tables I & II |
+| 16 | **Rule 8, Rule 9** | Declarations must appear together on the PDP, in a colour contrasting with background, legible, prominent, and in **Hindi (Devanagari) or English** (other languages may be added) | Physical packaging & listing content | None | Language-detection check: listing text must contain at least one of {Hindi, English} for mandatory fields | Rules 8 & 9 |
+| 17 | **Rule 10** | "Complete address" = postal address enabling the consumer to locate the manufacturer/packer/importer (street, PIN code, city/state) | Every package | ≤5 cm³ packs need only an identifying mark | Address field parsed for PIN code regex `\d{6}` OR full street+city+state combination | Rule 10 |
+| 18 | **Rule 18(2)** | **No sale above declared MRP** by any retailer, wholesale dealer, manufacturer, packer or importer | All sellers in the supply chain, incl. e-commerce sellers | Tax-revision cases follow the notice procedure in Rule 18(3) | Cross-check: displayed/charged transaction price ≤ declared MRP; flag any listing/checkout price > MRP | Rule 18(2)–(6) |
+| 19 | **Rule 24** | Wholesale packages need only 3 declarations: name/address of mfr-importer-packer, identity of commodity, and total retail packs or net qty | Wholesale packages (10+ retail packs, or bulk-to-intermediary) | Waived if another law prescribes an equivalent declaration | Different (lighter) validation ruleset than retail SKUs — classify by pack type before applying row 3–14 rules | Rule 24 |
+| 20 | **Rule 25** | Export packages cannot be sold in India unless re-labelled per Chapter II | Packages originally manufactured for export | — | Flag SKUs whose packaging metadata indicates "export pack" without evidence of relabeling | Rule 25 |
+| 21 | **Rule 27** | Mandatory registration of every manufacturer/packer/importer with the Director/Controller of Legal Metrology (₹500 fee; within 90 days of starting operations) | All manufacturers, packers, importers of pre-packaged commodities | None | Cross-reference declared manufacturer/importer name against the state Legal Metrology registration database (if API/data available) | Rule 27 |
+| 22 | **Rule 31** | Any advertisement quoting MRP must also declare net quantity, in the **same font size** as the MRP | Advertisements (incl. e-commerce banner/search ads) | — | If ad copy contains MRP text, verify co-located net-qty text of comparable font size | Rule 31 |
+| 23 | **Rule 5 / Second Schedule** | Certain commodities (e.g., mineral water, biscuits, cement) must be packed only in listed standard quantities | Commodities named in the Second Schedule | Products outside the Schedule are unrestricted | Cross-check declared net qty against the Schedule's permitted list for that commodity category | Rule 5 & Second Schedule (non-standard-size declaration proviso withdrawn w.e.f. 1 July 2012) |
+
+---
+
+## 2. Penalty / Non-Compliance Provisions
+
+| # | Provision | Offence | Penalty (current, post-2026 Jan Vishwas changes where applicable) | Applies To | Source |
+|---|-----------|---------|----------------------------------------------------------------|------------|--------|
+| P1 | **Rule 32(1), LM(PC) Rules** | Contravention of registration/advertisement provisions (Rules 27–31) | Fine ₹4,000 | Manufacturer/packer/importer | Rule 32(1) |
+| P2 | **Rule 32(2), LM(PC) Rules** | Any other contravention of the Rules with no specific penalty prescribed | Fine ₹5,000 (raised from the original ₹2,000 by subsequent amendment) | Any person covered by the Rules | Rule 32(2) |
+| P3 | **Section 29, LM Act 2009** | Quoting/publishing non-standard units | *Pre-2026:* fine up to ₹10,000, escalating to imprisonment up to 1 yr for repeat offences. *Post-1 May 2026 (Jan Vishwas Amendment):* 1st offence = warning + improvement notice; 2nd offence = penalty up to ₹50,000; subsequent = fine ₹1–2 lakh (imprisonment removed — decriminalised) | Any person | Section 29, as amended by Jan Vishwas (Amendment of Provisions) Act, 2026, effective 1 May 2026 |
+| P4 | **Section 31, LM Act 2009** | Non-production of documents | *Post-2026:* 1st = warning + improvement notice; 2nd = penalty up to ₹25,000; subsequent = fine ₹50,000–1,00,000 | Any regulated entity | Section 31, as amended, effective 1 May 2026 |
+| P5 | **Section 36(1), LM Act 2009** | Selling/manufacturing/packing a pre-packaged commodity whose package **does not conform to the mandatory declarations** — the central offence for missing/incorrect labels | 1st offence: fine up to ₹25,000; 2nd offence: fine up to ₹50,000; subsequent: fine ₹50,000–1,00,000 **or** imprisonment up to 1 year, **or both** | Manufacturer, packer, importer, seller, distributor, dealer — **and, per DoCA enforcement practice since 2020, the e-commerce entity where it is not a pure safe-harbour intermediary** | Section 36(1), LM Act, 2009 — **note:** this section was not among those listed in the Jan Vishwas 2026 notification found during this research; verify against the latest gazette before finalising your penalty engine, as the decriminalisation drive may extend to it in a later notification |
+| P6 | **Section 36(2), LM Act 2009** | Manufacturing/packing/importing with a net-quantity error beyond the permissible limit (First Schedule) | 1st offence: fine ₹10,000–50,000; 2nd/subsequent: fine up to ₹1,00,000 or imprisonment up to 1 year, or both | Manufacturer, packer, importer | Section 36(2), LM Act 2009 |
+| P7 | **Section 25, LM Act 2009** | Use of non-standard weight/measure | *Post-2026:* 1st = warning + improvement notice; 2nd = penalty up to ₹1,00,000; subsequent = fine ₹2–5 lakh | Traders/sellers using measuring instruments | Section 25, as amended by Jan Vishwas Act 2026, effective 1 May 2026 |
+| P8 | **Section 26, LM Act 2009** | Alteration of weight/measure | *Post-2026:* 2nd offence = fine up to ₹1,00,000; 3rd+ = flat ₹1,00,000 | Any person | Section 26, as amended, effective 1 May 2026 |
+| P9 | **Section 37, LM Act 2009** | Contravention by a Government-approved test centre | Wording changed from "punished with fine…" to "liable to penalty…" (decriminalisation of language, same ₹1,00,000 cap) | Approved test centres | Section 37(1), as amended, effective 1 May 2026 |
+| P10 | **Section 48, LM Act 2009** | Compounding of offences | Empowers the Director/Controller to compound (settle) offences on payment of a compounding fee instead of prosecution | All compoundable offences under the Act | Section 48, LM Act 2009 |
+
+---
+
+## 3. Amendment Timeline (chronological — for system versioning)
+
+| Date | Instrument | Key Change Relevant to the System |
+|------|-----------|-----------------------------------|
+| 1 Apr 2011 | Original notification, GSR 202(E), 7 Mar 2011 | Base Rules come into force, replacing the Standards of Weights & Measures (Packaged Commodities) Rules, 1977 |
+| 24 Oct 2011 → 1 Jul 2012 | GSR 748(E)/784(E) | Withdrew rubber-stamp option for mfg. date; withdrew "non-standard pack size" declaration proviso; tightened misleading-quantity-word prohibition |
+| 6 Jun 2013 | Amendment | Clarified "retail package" definition to exclude industrial/institutional consumer sales via distributors |
+| 23 Jun 2017 (in force 1 Jan 2018) | LM(PC) Amendment Rules, 2017 (GSR 629(E)) | **Landmark amendment** — introduced e-commerce coverage (Rule 6(10)), country-of-origin declaration, "Best Before/Use By" declaration (Rule 6(1)(da)), Unit Sale Price concept, optional QR-code/barcode declarations (Rule 6(4A)), doubled PDP font-size requirements |
+| 2 Nov 2021 (in force 1 Apr 2022) | LM(PC) Amendment Rules, 2021 | Operationalised Unit Sale Price mechanics; updated Consumer Protection Act cross-references (2019 Act) |
+| 28 Mar 2022 (in force 1 Oct 2022) | LM(PC) (Second) Amendment Rules, 2022 | Clarified USP rounding (2 decimal places); allowed electronic-product manufacturers to declare select fields via QR code for a transitional period |
+| 6 Oct 2023 (in force 1 Jan 2024) | LM(PC) Amendment Rules, 2023 | Defined "Combination Package," "Group Package," "Multi-Piece Package"; **exempted these from USP declaration**; refined mfg./pre-pack/import date clause |
+| 30 Oct 2025 (GSR 778(E)) | LM(PC) Amendment Rules, 2025 | Carved out **medical devices** — Medical Devices Rules, 2017 now govern PDP font size/placement for that category instead of these Rules |
+| 13 Feb 2026 (GSR 128(E)) | LM(PC) Amendment Rules, 2026 | Further notified amendment — **text not yet fully reviewed in this research; recommend fetching the full gazette notification (GSR 128(E)) before finalising the rule engine**, since it postdates this compilation |
+| 1 May 2026 | Jan Vishwas (Amendment of Provisions) Act, 2026 — LM Act sections brought into force | **Decriminalised** several offences (Sections 25, 26, 29, 31, 37): first-offence imprisonment/heavy fines replaced with "warning + improvement notice," escalating monetary penalties for repeat offences. Section 36 (the core packaging-declaration offence) was **not** listed among the changed sections in the notification reviewed here — treat as still governed by the original 2009 fine/imprisonment structure pending verification |
+
+---
+
+## 4. Key Definitions for System Design (Rule 2)
+
+| Term | Definition (paraphrased) | Why it matters for the system |
+|------|--------------------------|-------------------------------|
+| Manufacturer | Person/firm that produces/makes the commodity, or puts a mark claiming it does | Determines who is legally liable for a bad label (Explanation I/II, Rule 6) |
+| Packer | Person/firm that pre-packs the commodity into retail/wholesale units | Second liable party if different from manufacturer |
+| Retail package | Package for sale to an "ultimate consumer" — excludes industrial/institutional buyers | Gate-check before applying Chapter II rules |
+| Institutional / Industrial consumer | Buys directly from manufacturer for institutional/industrial use (hotels, airlines, factories) | Exempts the SKU from retail-declaration checks |
+| Combination / Group / Multi-Piece Package | Multi-item retail packs (dissimilar / similar-but-not-identical / identical items respectively) | Exempt from Unit Sale Price requirement (Rule 2(ka)/(kb)/(kc), 2023 Amendment) |
+| Wholesale package | Contains ≥10 labelled retail packs, or bulk sold to an intermediary | Subject to the lighter Rule 24 declaration set, not full Rule 6 |
+| Maximum Permissible Error | Allowed deficiency in declared vs. actual net quantity (First Schedule, e.g., 4.5–9% for small packs, 1% for large) | Tolerance band for quantity-accuracy checks, not a labelling-declaration issue |
+
+---
+
+## 5. Sources Consulted
+
+- Legal Metrology (Packaged Commodities) Rules, 2011 — full bare-act text, Nagaland Directorate of Legal Metrology mirror
+- Legal Metrology Act, 2009 — Chapter V (Sections 25–48), indiacode.nic.in
+- iPleaders, "Legal Metrology (Packaged Commodities) Rules, 2011" (rule-by-rule commentary)
+- S.S. Rana & Co. — articles on the 2017 e-commerce amendment, 2022/2023 Unit Sale Price amendments, penalty provisions
+- ELP Law — 2022 Amendment Rules clarification note
+- Lexplosion Solutions — Jan Vishwas (Amendment of Provisions) Act, 2026 enforcement-date notification
+- Drishti IAS / PIB — 2025 Medical Devices carve-out amendment
+- Simpliance — 2025 (GSR 778(E)) and 2026 (GSR 128(E)) notification trackers
+- Deccan Herald, Inc42, Storyboard18, Moneylife — DoCA/CCPA enforcement actions against Amazon, Flipkart, Meesho for e-commerce non-compliance (2020–2026), confirming Rule 6(10) is actively enforced against marketplaces
+
+**Open items flagged for you to verify directly against the e-Gazette before hardcoding into the rule engine:**
+1. Full text of the 2026 Amendment (GSR 128(E), 13 Feb 2026) — only its existence was confirmed here, not its content.
+2. Whether Section 36 of the LM Act was altered by any Jan Vishwas notification beyond the one reviewed (which covered Sections 25, 26, 29, 31, 37).
+3. State-specific Legal Metrology registration databases, if you intend to cross-reference manufacturer registration numbers (Rule 27) — these are maintained separately by each state Controller, not centrally.

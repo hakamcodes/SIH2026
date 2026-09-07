@@ -1,0 +1,7 @@
+{
+  "_status": "PARTIAL_SOURCE",
+  "_note": "Only biscuits ported from research/NotebookLM/rule_engine.py. research/mainResearch/Product Categories, Exceptions & Decision Logic.docx was read in full (CLAUDE.md section 12 outstanding task) and does describe standard-size bands for bread (100 g multiples), milk powder (50 g steps up to 5 kg), laundry soap (50 g steps), toilet soap (25 g steps), non-soapy detergent powder (50 g steps up to 2 kg), paints/chemicals (50 ml steps), cement (1-25 kg, 40 kg white cement, 50 kg), rice (100/200 g steps up to 5 kg), edible oil/ghee (50 g up to 5 kg), and bottled water/soft drinks (100 ml/200 ml/500 ml/1 L). None of these give a fully closed, unambiguous discrete list (the docx itself uses '...' rather than an enumerated series, and is a paraphrased secondary research artifact, not the gazette text) -- inventing a specific terminal bound (e.g. 'bread tops out at exactly 2 kg') to encode here would risk a wrong BLOCKER verdict under LM-M04a, which is the single failure mode CLAUDE.md section 4.2/8 warns about most. Left untranscribed pending the actual gazetted Second Schedule text. Do not invent sizes for untranscribed categories; LM-M04a/LM-M04b only fire for subtypes present in this file.",
+  "sizes_g": {
+    "biscuits": [25, 50, 75, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000]
+  }
+}
