@@ -38,6 +38,7 @@ CREATE TABLE scans (
     overall_verdict verdict_enum NOT NULL,
     extraction_envelope_json JSONB NOT NULL,
     image_paths_json JSONB NOT NULL DEFAULT '[]',
+    ocr_boxes_json JSONB NOT NULL DEFAULT '[]',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

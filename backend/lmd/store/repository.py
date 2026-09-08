@@ -29,13 +29,14 @@ def create_scan(
     result: ScanResult,
     extraction_envelope: dict,
     image_paths: list[str],
+    ocr_boxes: list[dict] | None = None,
 ) -> str:
     scan_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
     conn.execute(
         """INSERT INTO scans (scan_id, scan_date, scan_source, ruleset_version, overall_verdict,
-                               extraction_envelope_json, image_paths_json, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                               extraction_envelope_json, image_paths_json, ocr_boxes_json, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             scan_id,
             scan_date,
@@ -44,6 +45,7 @@ def create_scan(
             result.overall_verdict.value,
             json.dumps(extraction_envelope, ensure_ascii=False),
             json.dumps(image_paths),
+            json.dumps(ocr_boxes or []),
             created_at,
         ),
     )
@@ -75,6 +77,7 @@ def get_scan(conn: sqlite3.Connection, scan_id: str) -> dict | None:
     scan = dict(row)
     scan["extraction_envelope"] = json.loads(scan.pop("extraction_envelope_json"))
     scan["image_paths"] = json.loads(scan.pop("image_paths_json"))
+    scan["ocr_boxes"] = json.loads(scan.pop("ocr_boxes_json", "[]") or "[]")
     rules = conn.execute("SELECT * FROM rule_results WHERE scan_id = ?", (scan_id,)).fetchall()
     scan["rule_results"] = [dict(r) for r in rules]
     return scan
@@ -110,6 +113,29 @@ def create_case(conn: sqlite3.Connection, scan_id: str, actor_id: str) -> str:
 def get_case(conn: sqlite3.Connection, case_id: str) -> dict | None:
     row = conn.execute("SELECT * FROM cases WHERE case_id = ?", (case_id,)).fetchone()
     return dict(row) if row is not None else None
+
+
+def list_cases(
+    conn: sqlite3.Connection,
+    status: CaseStatus | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict]:
+    """Case queue for the frontend (no such listing existed before -- only
+    get_case(case_id) did). Joins scans.overall_verdict so a queue row does
+    not need a second round trip per case."""
+    query = (
+        "SELECT cases.*, scans.overall_verdict AS scan_overall_verdict "
+        "FROM cases JOIN scans ON scans.scan_id = cases.scan_id "
+    )
+    params: list = []
+    if status is not None:
+        query += "WHERE cases.status = ? "
+        params.append(status.value)
+    query += "ORDER BY cases.created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    rows = conn.execute(query, params).fetchall()
+    return [dict(r) for r in rows]
 
 
 def update_case_status(

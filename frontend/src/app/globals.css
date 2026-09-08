@@ -1,0 +1,315 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* The `dark:` variant must still compile because the shadcn primitives carry
+   dark: utilities in their class strings, but no `.dark` class is ever applied:
+   this product is light-only by decision, so every contrast pair below is
+   verified in exactly one mode. */
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+   LAYER 1 - PRIMITIVES
+   Raw values. Never referenced by a component directly.
+   --------------------------------------------------------------------------- */
+:root {
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --slate-950: #020617;
+
+  --blue-700: #0369a1;
+  --blue-800: #075985;
+
+  --red-50: #fef2f2;
+  --red-200: #fecaca;
+  --red-600: #dc2626;
+  --red-700: #b91c1c;
+
+  --amber-50: #fffbeb;
+  --amber-200: #fde68a;
+  --amber-600: #b45309;
+  --amber-700: #92400e;
+
+  --green-50: #f0fdf4;
+  --green-200: #bbf7d0;
+  --green-700: #15803d;
+
+  --violet-50: #f5f3ff;
+  --violet-200: #ddd6fe;
+  --violet-700: #6d28d9;
+}
+
+/* ---------------------------------------------------------------------------
+   LAYER 2 - SEMANTIC
+   What components reference. Also re-points every shadcn variable at the
+   institutional palette so the ui/ primitives inherit it for free.
+   --------------------------------------------------------------------------- */
+:root {
+  --radius: 0.25rem; /* 4px. Nothing in this product is rounder. */
+
+  --background: var(--slate-50);
+  --foreground: var(--slate-900);
+  --card: #ffffff;
+  --card-foreground: var(--slate-900);
+  --popover: #ffffff;
+  --popover-foreground: var(--slate-900);
+
+  --primary: var(--slate-900);
+  --primary-foreground: #ffffff;
+  --secondary: var(--slate-100);
+  --secondary-foreground: var(--slate-900);
+  --muted: var(--slate-100);
+  --muted-foreground: var(--slate-600);
+  --accent: var(--slate-100);
+  --accent-foreground: var(--slate-900);
+  --destructive: var(--red-600);
+
+  --border: var(--slate-200);
+  --input: var(--slate-300);
+  --ring: var(--blue-700);
+
+  /* Interactive accent, distinct from --primary (which is near-black ink). */
+  --link: var(--blue-700);
+  --link-hover: var(--blue-800);
+
+  --surface: #ffffff;
+  --surface-subtle: var(--slate-100);
+  --border-strong: var(--slate-300);
+  --fg-muted: var(--slate-600);
+  --fg-subtle: var(--slate-500);
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: var(--slate-900);
+  --sidebar-primary: var(--slate-900);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--slate-100);
+  --sidebar-accent-foreground: var(--slate-900);
+  --sidebar-border: var(--slate-200);
+  --sidebar-ring: var(--blue-700);
+
+  /* -- VERDICT (three-state, never collapsed; CLAUDE.md invariant 4) -- */
+  --verdict-compliant-fg: var(--green-700);
+  --verdict-compliant-bg: var(--green-50);
+  --verdict-compliant-border: var(--green-200);
+  --verdict-non-compliant-fg: var(--red-700);
+  --verdict-non-compliant-bg: var(--red-50);
+  --verdict-non-compliant-border: var(--red-200);
+  --verdict-needs-review-fg: var(--amber-700);
+  --verdict-needs-review-bg: var(--amber-50);
+  --verdict-needs-review-border: var(--amber-200);
+
+  /* -- RULE STATUS --
+     NOT_IN_FORCE gets violet and NOT_EVALUABLE gets a dashed grey: one is the
+     point-in-time-law claim, the other the never-fabricate-a-threshold claim.
+     Collapsing either into a generic "n/a" would erase a load-bearing fact. */
+  --status-not-in-force-fg: var(--violet-700);
+  --status-not-in-force-bg: var(--violet-50);
+  --status-not-in-force-border: var(--violet-200);
+  --status-not-evaluable-fg: var(--slate-600);
+  --status-not-evaluable-bg: var(--slate-100);
+  --status-not-evaluable-border: var(--slate-400);
+  --status-na-fg: var(--slate-500);
+  --status-na-bg: var(--slate-100);
+  --status-na-border: var(--slate-200);
+
+  /* -- SEVERITY (rendered as a left border rule, never a fill) -- */
+  --sev-blocker: var(--red-700);
+  --sev-major: var(--amber-600);
+  --sev-minor: var(--slate-500);
+  --sev-diagnostic: var(--slate-400);
+
+  /* -- CONFIDENCE (thresholds mirror backend/lmd/cv/overlay.py exactly:
+        >=0.90 high, >=0.70 medium, else low) -- */
+  --conf-high: var(--green-700);
+  --conf-med: var(--amber-600);
+  --conf-low: var(--red-700);
+
+  /* -- MOTION -- */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 260ms;
+  --ease: cubic-bezier(0.2, 0, 0.13, 1);
+
+  /* -- LAYOUT -- */
+  --rail-w: 14rem; /* 224px */
+  --topbar-h: 3rem; /* 48px */
+  --content-max: 90rem; /* 1440px */
+  --table-row-h: 2rem; /* 32px */
+}
+
+/* ---------------------------------------------------------------------------
+   LAYER 3 - TAILWIND THEME BINDING
+   Exposes the semantic layer as utilities (bg-surface, text-conf-high, ...).
+   --------------------------------------------------------------------------- */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-conf-high: var(--conf-high);
+  --color-conf-med: var(--conf-med);
+  --color-conf-low: var(--conf-low);
+  --color-sev-blocker: var(--sev-blocker);
+  --color-sev-major: var(--sev-major);
+  --color-sev-minor: var(--sev-minor);
+  --color-sev-diagnostic: var(--sev-diagnostic);
+
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-heading: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-legal: var(--font-eb-garamond), Georgia, serif;
+
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.375rem;
+  --radius-2xl: 0.375rem;
+  --radius-3xl: 0.375rem;
+  --radius-4xl: 0.375rem;
+
+  --shadow-popover: 0 4px 12px -2px rgb(15 23 42 / 0.12);
+  /* The one elevation token for a resting surface -- deliberately faint (not
+     a card-app drop shadow) so panels read as a hair off the canvas rather
+     than "floating," keeping the flat institutional surface but giving it
+     just enough depth to stop looking like unstyled HTML. */
+  --shadow-panel: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 1px 0 rgb(15 23 42 / 0.03);
+
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-2xs--line-height: 1rem;
+}
+
+/* ---------------------------------------------------------------------------
+   BASE
+   --------------------------------------------------------------------------- */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* Digits must align in columns: this is a product about reading numbers off
+     a label correctly. */
+  .font-mono,
+  table,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--slate-200);
+  }
+}
+
+@layer utilities {
+  /* Uppercase micro-label used for table headers and field captions. */
+  .label-caps {
+    font-size: var(--text-2xs);
+    line-height: 1rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--fg-subtle);
+  }
+
+  /* Quoted statute renders as a different kind of text from UI copy. */
+  .legal-quote {
+    font-family: var(--font-legal);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  /* The resting elevation for a Panel -- see --shadow-panel above. */
+  .shadow-panel {
+    box-shadow: var(--shadow-panel);
+  }
+}
+
+/* Indeterminate progress fill: used only where genuine percentage isn't
+   available (server-side scan processing has no progress endpoint), so the
+   UI never invents a number it doesn't have but still visibly keeps moving. */
+@keyframes indeterminate-sweep {
+  0% {
+    transform: translateX(-100%) scaleX(0.4);
+  }
+  50% {
+    transform: translateX(20%) scaleX(0.6);
+  }
+  100% {
+    transform: translateX(150%) scaleX(0.4);
+  }
+}
+
+.animate-indeterminate {
+  animation: indeterminate-sweep 1.6s var(--ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

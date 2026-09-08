@@ -103,7 +103,19 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(_SCHEMA)
+    _ensure_ocr_boxes_column(conn)
     conn.commit()
+
+
+def _ensure_ocr_boxes_column(conn: sqlite3.Connection) -> None:
+    """Additive migration: frontend Phase 0 needs OCR box geometry (polygon,
+    text, confidence, font metrics) alongside a scan, but ExtractionEnvelope
+    is deliberately geometry-free (extraction/contract.py), so this cannot
+    live in extraction_envelope_json. A guarded ALTER TABLE keeps existing
+    databases working without a destructive migration."""
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(scans)")}
+    if "ocr_boxes_json" not in columns:
+        conn.execute("ALTER TABLE scans ADD COLUMN ocr_boxes_json TEXT NOT NULL DEFAULT '[]'")
 
 
 def connect(db_path: str | Path) -> sqlite3.Connection:

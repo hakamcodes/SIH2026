@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from lmd import config
 from lmd.evidence.bsa63 import generate_certificate
 from lmd.evidence.hashing import sha256_bytes
-from lmd.store import repository
+from lmd.store import audit, repository
 from lmd.store.models import CaseStatus, EvidenceType
 
 from .deps import get_db, require_inspector
@@ -40,6 +40,16 @@ def create_case(body: CreateCaseRequest, inspector_id: str = Depends(require_ins
     return repository.get_case(conn, case_id)
 
 
+@router.get("/cases")
+def list_cases(
+    status: Optional[CaseStatus] = None,
+    limit: int = 50,
+    offset: int = 0,
+    conn=Depends(get_db),
+):
+    return {"cases": repository.list_cases(conn, status=status, limit=limit, offset=offset)}
+
+
 @router.get("/cases/{case_id}")
 def get_case(case_id: str, conn=Depends(get_db)):
     case = repository.get_case(conn, case_id)
@@ -47,6 +57,24 @@ def get_case(case_id: str, conn=Depends(get_db)):
         raise HTTPException(status_code=404, detail=f"case not found: {case_id}")
     case["evidence"] = repository.list_evidence(conn, case_id)
     return case
+
+
+@router.get("/cases/{case_id}/audit")
+def get_case_audit(case_id: str, conn=Depends(get_db)):
+    """Read-only view of the hash-chained audit log for this case (CLAUDE.md
+    Section 63 certifiability claim rests on this chain being unbroken).
+    Additive endpoint -- no existing write path or schema is touched."""
+    if repository.get_case(conn, case_id) is None:
+        raise HTTPException(status_code=404, detail=f"case not found: {case_id}")
+    rows = conn.execute(
+        "SELECT log_id, case_id, actor_id, action, timestamp, prev_hash, entry_hash "
+        "FROM audit_log WHERE case_id = ? ORDER BY rowid ASC",
+        (case_id,),
+    ).fetchall()
+    return {
+        "entries": [dict(row) for row in rows],
+        "chain_verified": audit.verify(conn, case_id=case_id),
+    }
 
 
 @router.put("/cases/{case_id}")

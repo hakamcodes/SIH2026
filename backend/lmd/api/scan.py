@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from lmd import config
 from lmd.cv.overlay import encode_png, render_overlay
-from lmd.cv.pipeline_a import run_pipeline_a
+from lmd.cv.pipeline_a import PipelineAResult, run_pipeline_a
 from lmd.cv.reconcile import reconcile
 from lmd.evidence.hashing import sha256_bytes
 from lmd.store import repository
@@ -37,6 +37,43 @@ def _maybe_run_pipeline_b(image_bytes: bytes) -> dict[str, Any]:
         return extract_with_vision(image_bytes)
     except Exception:  # noqa: BLE001 -- a vision-pipeline failure must never break the scan
         return {}
+
+
+def _serialize_ocr_boxes(pipeline_a_result: PipelineAResult) -> list[dict[str, Any]]:
+    """Frontend Phase 0 addition: expose the box geometry that already exists
+    inside PipelineAResult (never persisted or returned before this) so the
+    frontend can draw an interactive overlay instead of only the baked PNG.
+    Read-only projection -- does not change what pipeline A computes."""
+    boxes: list[dict[str, Any]] = []
+    for f in pipeline_a_result.fields:
+        boxes.append(
+            {
+                "text": f.text,
+                "confidence": f.confidence,
+                "polygon": f.polygon,
+                "enhanced": f.enhanced,
+                "font_metrics": {
+                    "box_h_px": f.font_metrics.box_h_px,
+                    "ink_h_px": f.font_metrics.ink_h_px,
+                    "height_mm": f.font_metrics.height_mm,
+                    "measurable": f.font_metrics.measurable,
+                    "reason": f.font_metrics.reason,
+                },
+            }
+        )
+    return boxes
+
+
+def _serialize_calibration(pipeline_a_result: PipelineAResult) -> dict[str, Any] | None:
+    calibration = pipeline_a_result.calibration
+    if calibration is None:
+        return None
+    return {
+        "px_per_mm": calibration.px_per_mm,
+        "card_width_px": calibration.card_width_px,
+        "card_height_px": calibration.card_height_px,
+        "bounding_box": list(calibration.bounding_box),
+    }
 
 
 @router.post("/scans")
@@ -81,6 +118,8 @@ async def create_scan(
     overlay_path = config.UPLOAD_DIR / f"{image_id}_overlay.png"
     overlay_path.write_bytes(encode_png(overlay_image))
 
+    ocr_boxes = _serialize_ocr_boxes(pipeline_a_result)
+
     scan_id = repository.create_scan(
         conn,
         scan_date=effective_scan_date,
@@ -89,6 +128,7 @@ async def create_scan(
         result=result,
         extraction_envelope=envelope,
         image_paths=[str(image_path), str(overlay_path)],
+        ocr_boxes=ocr_boxes,
     )
 
     return {
@@ -96,6 +136,10 @@ async def create_scan(
         "overall_verdict": result.overall_verdict.value,
         "extraction_envelope": envelope,
         "image_sha256": sha256_bytes(image_bytes),
+        "image_width": cv_image.shape[1],
+        "image_height": cv_image.shape[0],
+        "ocr_boxes": ocr_boxes,
+        "calibration": _serialize_calibration(pipeline_a_result),
         "rule_results": {
             rid: {
                 "status": r.status.value,

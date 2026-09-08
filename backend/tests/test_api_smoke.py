@@ -96,6 +96,13 @@ def test_full_scan_to_report_flow(client):
     assert resp.status_code == 200
     assert resp.json()["total_scans"] == 1
 
+    resp = client.get(f"/api/v1/cases/{case_id}/audit")
+    assert resp.status_code == 200, resp.text
+    audit_body = resp.json()
+    assert audit_body["chain_verified"] is True
+    assert len(audit_body["entries"]) >= 2
+    assert audit_body["entries"][0]["case_id"] == case_id
+
 
 def test_unauthenticated_case_update_is_rejected(client):
     resp = client.put("/api/v1/cases/nonexistent", json={"status": "QUEUED"})

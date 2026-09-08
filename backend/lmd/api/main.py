@@ -5,9 +5,12 @@ and the single counters dashboard. Run with:
 """
 from __future__ import annotations
 
-from fastapi import FastAPI
+import os
 
-from . import cases, limitations, metrics, reports, rules, scan
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from . import cases, images, limitations, metrics, reports, rules, scan
 from .errors import register_error_handlers
 
 app = FastAPI(
@@ -19,6 +22,22 @@ app = FastAPI(
     ),
 )
 
+# Frontend Phase 0: the API had no CORS policy at all, which blocks every
+# browser-based frontend outright. LMD_CORS_ORIGINS is a comma-separated
+# allowlist; default covers the Next.js dev server only.
+_cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("LMD_CORS_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 register_error_handlers(app)
 app.include_router(scan.router)
 app.include_router(cases.router)
@@ -26,6 +45,7 @@ app.include_router(rules.router)
 app.include_router(reports.router)
 app.include_router(metrics.router)
 app.include_router(limitations.router)
+app.include_router(images.router)
 
 
 @app.get("/health")
