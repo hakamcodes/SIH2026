@@ -1,4 +1,4 @@
-"""Shared FastAPI dependencies: a per-request sqlite connection, the shared
+"""Shared FastAPI dependencies: the shared Firestore client, the shared
 rule engine instance, and inspector auth.
 
 Auth is deliberately minimal: the research spec (database-api-data-model.md)
@@ -28,13 +28,9 @@ def get_engine() -> RuleEngine:
 
 
 def get_db():
-    from lmd.store.db import connect
+    from lmd.store.db import get_client
 
-    conn = connect(config.DB_PATH)
-    try:
-        yield conn
-    finally:
-        conn.close()
+    yield get_client()
 
 
 def require_inspector(

@@ -1,0 +1,29 @@
+# Render Blueprint for the FastAPI backend only. The frontend deploys to
+# Vercel separately (see frontend/README.md) -- Render's free web service
+# tier is used here since persistence has moved to Firestore, so this
+# service needs no attached disk (CLAUDE.md deploy decision: Render's own
+# disk does not survive a redeploy).
+#
+# Secrets (sync: false) are intentionally left blank here -- Render prompts
+# for them once at Blueprint creation and stores them outside this file.
+# See .env.example at the repo root for what each one is and where to get it.
+services:
+  - name: lmd-backend
+    type: web
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn lmd.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHONUTF8
+        value: "1"
+      - key: FIRESTORE_CREDENTIALS_JSON
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LMD_INSPECTOR_API_TOKEN
+        sync: false
+      - key: LMD_EVIDENCE_SIGNING_KEY
+        sync: false
+      - key: LMD_CORS_ORIGINS
+        sync: false

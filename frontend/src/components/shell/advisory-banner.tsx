@@ -13,17 +13,17 @@ import { SITEWIDE_DISCLAIMER } from "@/lib/disclaimers";
  */
 export function AdvisoryBanner() {
   return (
-    <div className="border-b border-border bg-surface-subtle">
+    <div className="border-b border-sidebar-border bg-sidebar">
       <div className="mx-auto flex max-w-[var(--content-max)] items-start gap-2 px-4 py-2 sm:items-center">
         <Info
-          className="mt-0.5 size-3.5 shrink-0 text-fg-subtle sm:mt-0"
+          className="mt-0.5 size-3.5 shrink-0 text-sidebar-foreground/60 sm:mt-0"
           aria-hidden="true"
         />
-        <p className="text-xs text-fg-muted">
+        <p className="text-xs text-sidebar-foreground/80">
           {SITEWIDE_DISCLAIMER}{" "}
           <Link
             href="/limitations"
-            className="text-link underline underline-offset-2 hover:text-link-hover"
+            className="font-medium text-sidebar-foreground underline underline-offset-2 transition-colors duration-[var(--dur-fast)] hover:text-accent-cta"
           >
             Known limitations
           </Link>

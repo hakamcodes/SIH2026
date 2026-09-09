@@ -5,15 +5,14 @@ which lmd.api.errors turns into a 422 citing Section 15(4).
 """
 from __future__ import annotations
 
-import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from lmd import config
 from lmd.evidence.bsa63 import generate_certificate
 from lmd.evidence.hashing import sha256_bytes
+from lmd.evidence.image_codec import compress_for_storage, encode_base64
 from lmd.store import audit, repository
 from lmd.store.models import CaseStatus, EvidenceType
 
@@ -66,13 +65,8 @@ def get_case_audit(case_id: str, conn=Depends(get_db)):
     Additive endpoint -- no existing write path or schema is touched."""
     if repository.get_case(conn, case_id) is None:
         raise HTTPException(status_code=404, detail=f"case not found: {case_id}")
-    rows = conn.execute(
-        "SELECT log_id, case_id, actor_id, action, timestamp, prev_hash, entry_hash "
-        "FROM audit_log WHERE case_id = ? ORDER BY rowid ASC",
-        (case_id,),
-    ).fetchall()
     return {
-        "entries": [dict(row) for row in rows],
+        "entries": audit.list_entries(conn, case_id=case_id),
         "chain_verified": audit.verify(conn, case_id=case_id),
     }
 
@@ -109,12 +103,13 @@ async def attach_evidence(
         raise HTTPException(status_code=404, detail=f"case not found: {case_id}")
 
     data = await file.read()
-    file_hash = sha256_bytes(data)
-
-    config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    file_id = str(uuid.uuid4())
-    file_path = config.UPLOAD_DIR / f"evidence_{file_id}_{file.filename}"
-    file_path.write_bytes(data)
+    # Hash the bytes actually persisted (post-compression), not the original
+    # upload -- the original is never stored anywhere, so a hash of it could
+    # never be verified against anything. Hashing what's in Firestore keeps
+    # the SHA-256 chain meaningful: it proves the stored evidence hasn't been
+    # altered since ingestion, which is the guarantee this system can back.
+    stored_bytes = compress_for_storage(data)
+    file_hash = sha256_bytes(stored_bytes)
 
     cert = generate_certificate(
         device_identification=device_identification,
@@ -127,7 +122,7 @@ async def attach_evidence(
         conn,
         case_id=case_id,
         evidence_type=evidence_type.value,
-        file_path=str(file_path),
+        file_base64=encode_base64(stored_bytes),
         sha256_hash=file_hash,
         captured_by=inspector_id,
         bsa_s63_certificate_id=cert.certificate_id,

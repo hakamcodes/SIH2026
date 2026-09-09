@@ -18,10 +18,18 @@ def test_reconcile_populates_net_quantity_and_mrp_from_ocr_only():
     assert "ocr_pipeline" not in envelope
 
 
-def test_reconcile_never_takes_a_numeric_value_from_vision_alone():
+def test_reconcile_surfaces_a_vision_only_numeric_value_at_capped_confidence():
+    # Pipeline A found nothing at all (e.g. a split-line MRP/quantity RapidOCR
+    # never joined) -- the value must still be surfaced, never silently
+    # dropped, but capped below every BLOCKER rule's min_field_confidence so
+    # LM-U01's Trust Gate can never let it alone reach COMPLIANT.
     result = PipelineAResult(fields=[])
     envelope = reconcile(result, vision_fields={"net_quantity": {"value": 250.0, "unit": "g"}})
-    assert "net_quantity" not in envelope
+    assert envelope["net_quantity"] == {"value": 250.0, "unit": "g"}
+    assert envelope["field_confidences"]["net_quantity"] == VISION_ONLY_CONFIDENCE
+    # no OCR reading exists, so this must not be mistaken for a dual-pipeline
+    # agreement signal
+    assert "ocr_pipeline" not in envelope
 
 
 def test_reconcile_fills_country_of_origin_gap_from_vision_at_capped_confidence():

@@ -79,8 +79,13 @@ export function CaseQueueTable() {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {data.cases.map((row) => (
-          <TableRow key={row.case_id} className="cursor-pointer" tabIndex={0}>
+        {data.cases.map((row, index) => (
+          <TableRow
+            key={row.case_id}
+            style={{ "--stagger": index } as React.CSSProperties}
+            className="stagger-item cursor-pointer border-l-2 border-l-transparent transition-[background-color,border-color,box-shadow] duration-[var(--dur-fast)] hover:border-l-primary hover:bg-surface-subtle hover:shadow-sm"
+            tabIndex={0}
+          >
             <TableCell className="p-0">
               <Link
                 href={`/cases/${row.case_id}`}

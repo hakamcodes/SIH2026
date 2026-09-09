@@ -182,8 +182,9 @@ export function ScanUploadForm() {
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           className={cn(
-            "relative flex aspect-4/3 flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed border-border bg-surface-subtle p-6 text-center transition-colors duration-[var(--dur-fast)]",
-            isDragging && "border-link bg-[color-mix(in_oklab,var(--surface-subtle),var(--link)_8%)]",
+            "relative flex aspect-4/3 flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed border-border bg-surface-subtle p-6 text-center transition-[background-color,border-color,box-shadow] duration-[var(--dur-fast)]",
+            isDragging &&
+              "animate-dash-pulse border-primary bg-[color-mix(in_oklab,var(--surface-subtle),var(--primary)_8%)] shadow-md",
           )}
         >
           {previewUrl ? (
@@ -193,7 +194,7 @@ export function ScanUploadForm() {
               <img
                 src={previewUrl}
                 alt="Selected package"
-                className="absolute inset-0 size-full rounded-[calc(var(--radius)-1px)] object-contain p-2"
+                className="animate-scale-in absolute inset-0 size-full rounded-[calc(var(--radius)-1px)] object-contain p-2"
               />
               <Button
                 type="button"
@@ -307,7 +308,11 @@ export function ScanUploadForm() {
           </label>
         </div>
 
-        <Button type="submit" disabled={!file || submitting} className="w-full gap-1.5">
+        <Button
+          type="submit"
+          disabled={!file || submitting}
+          className="w-full gap-1.5 bg-gradient-cta text-accent-cta-foreground shadow-sm transition-[box-shadow,transform] hover:shadow-md hover:-translate-y-px"
+        >
           <ScanLine className="size-4" aria-hidden="true" />
           Run scan
         </Button>

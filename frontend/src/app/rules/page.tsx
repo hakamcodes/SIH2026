@@ -28,10 +28,10 @@ function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "inline-flex min-h-8 items-center gap-1 rounded-sm border px-2 py-1 text-xs transition-colors duration-[var(--dur-fast)]",
+        "inline-flex min-h-8 items-center gap-1 rounded-sm border px-2 py-1 text-xs transition-[background-color,border-color,box-shadow,transform,color] duration-[var(--dur)]",
         active
-          ? "border-foreground bg-foreground text-background"
-          : "border-border bg-surface text-fg-muted hover:border-border-strong hover:text-foreground",
+          ? "scale-105 border-transparent bg-gradient-primary text-primary-foreground shadow-sm"
+          : "border-border bg-surface text-fg-muted hover:border-border-strong hover:text-foreground hover:shadow-sm",
       )}
     >
       <Icon className="size-3" />

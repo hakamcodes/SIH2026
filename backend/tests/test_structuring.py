@@ -20,6 +20,30 @@ def test_parse_mrp_with_rs_prefix():
     assert result["currency_marker"] == "Rs."
 
 
+def test_parse_mrp_with_long_tax_disclaimer_between_marker_and_value():
+    # A disclaimer longer than the old 15-char gap cap must still parse.
+    result = structuring.parse_mrp(["MRP (Incl. of all Taxes) Rs. 45.00"])
+    assert result["value"] == 45.0
+
+
+def test_parse_mrp_recovers_when_rapidocr_splits_marker_and_value_across_lines():
+    result = structuring.parse_mrp(["MRP", "₹45.00"])
+    assert result["value"] == 45.0
+    assert result["currency_marker"] == "₹"
+
+
+def test_parse_mrp_recovers_split_marker_with_tax_disclaimer_on_marker_line():
+    result = structuring.parse_mrp(["MRP (Incl. of all Taxes)", "Rs. 45.00"])
+    assert result["value"] == 45.0
+
+
+def test_parse_mrp_ignores_unrelated_number_after_bare_marker_line():
+    # A line that just says "MRP" followed by an unrelated line with no
+    # currency marker or decimal must not be mis-parsed as the price.
+    result = structuring.parse_mrp(["MRP", "Batch 12"])
+    assert result is None
+
+
 def test_parse_consumer_care_phone_and_email():
     result = structuring.parse_consumer_care(["Call 1800-225599 or write to consumer@example.com"])
     assert result["phone"] is not None

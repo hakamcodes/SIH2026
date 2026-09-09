@@ -1,137 +1,54 @@
-"""SQLite persistence for local/offline dev and the hackathon prototype.
+"""Firestore client factory. Firestore is schemaless -- there is no DDL step
+equivalent to the old sqlite _SCHEMA/ensure_schema; collections and documents
+are created implicitly on first write.
 
-Uses stdlib sqlite3 rather than SQLAlchemy or a Postgres driver -- this machine
-has no Docker and no Postgres server (CLAUDE.md section 2). The schema here is
-semantically identical to store/ddl_postgres.sql (same tables, same columns,
-same CHECK constraints) so porting to Postgres later is a mechanical DDL swap,
-not a data-model change.
+The reason-to-believe hard gate (CLAUDE.md invariant 12) can no longer be
+backed by a database CHECK constraint (Firestore has none). It is enforced
+solely in lmd.store.repository.update_case_status, which raises
+ReasonToBelieveRequired before any write reaches Firestore -- the second half
+of the old "enforced twice" guarantee is now a documented gap, not a silent
+one.
 
-The reason-to-believe hard gate (CLAUDE.md invariant 12) is enforced twice:
-once here via a CHECK constraint (`chk_verified_reason`), and again in
-backend/lmd/api/cases.py before the UPDATE ever reaches this layer, so the
-422 has a chance to carry the Section 15(4) message instead of surfacing a
-raw sqlite3.IntegrityError to a caller.
+Fatal on misconfiguration, deliberately: a missing or invalid
+FIRESTORE_CREDENTIALS_JSON must stop the server at startup, not fall back to
+an unpersisted client (mirrors the loader's "no bare except" rule in
+CLAUDE.md invariant 3, applied here to the store layer instead).
 """
 from __future__ import annotations
 
-import sqlite3
-from pathlib import Path
+import json
+from functools import lru_cache
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS inspectors (
-    inspector_id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    designation TEXT NOT NULL,
-    active INTEGER NOT NULL DEFAULT 1
-);
+import firebase_admin
+from firebase_admin import credentials, firestore
+from google.cloud.firestore import Client
 
-CREATE TABLE IF NOT EXISTS scans (
-    scan_id TEXT PRIMARY KEY,
-    scan_date TEXT NOT NULL,
-    scan_source TEXT NOT NULL,
-    ruleset_version TEXT NOT NULL,
-    overall_verdict TEXT NOT NULL CHECK (overall_verdict IN ('COMPLIANT', 'NON_COMPLIANT', 'NEEDS_REVIEW')),
-    extraction_envelope_json TEXT NOT NULL,
-    image_paths_json TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS rule_results (
-    scan_id TEXT NOT NULL REFERENCES scans(scan_id) ON DELETE CASCADE,
-    rule_id TEXT NOT NULL,
-    category TEXT NOT NULL,
-    severity TEXT NOT NULL CHECK (severity IN ('BLOCKER', 'MAJOR', 'MINOR', 'DIAGNOSTIC')),
-    status TEXT NOT NULL CHECK (status IN ('PASS', 'FAIL', 'REVIEW', 'NOT_APPLICABLE', 'NOT_IN_FORCE', 'NOT_EVALUABLE')),
-    on_fail_code TEXT,
-    message TEXT NOT NULL,
-    legal_basis TEXT NOT NULL,
-    citation_verified INTEGER NOT NULL DEFAULT 1,
-    PRIMARY KEY (scan_id, rule_id)
-);
-
-CREATE TABLE IF NOT EXISTS cases (
-    case_id TEXT PRIMARY KEY,
-    scan_id TEXT NOT NULL REFERENCES scans(scan_id) ON DELETE RESTRICT,
-    status TEXT NOT NULL CHECK (
-        status IN ('QUEUED', 'UNDER_REVIEW', 'CONFIRMED_VIOLATION', 'REJECTED_FALSE_POSITIVE', 'ESCALATED', 'CLOSED')
-    ) DEFAULT 'QUEUED',
-    assigned_inspector_id TEXT REFERENCES inspectors(inspector_id) ON DELETE SET NULL,
-    reason_to_believe_note TEXT,
-    created_at TEXT NOT NULL,
-    verified_at TEXT,
-    closed_at TEXT,
-    CONSTRAINT chk_verified_reason CHECK (
-        (status IN ('CONFIRMED_VIOLATION', 'ESCALATED', 'CLOSED')
-            AND reason_to_believe_note IS NOT NULL AND reason_to_believe_note != '')
-        OR status IN ('QUEUED', 'UNDER_REVIEW', 'REJECTED_FALSE_POSITIVE')
-    )
-);
-
-CREATE TABLE IF NOT EXISTS evidence_certificates (
-    certificate_id TEXT PRIMARY KEY,
-    device_identification TEXT NOT NULL,
-    production_process_description TEXT NOT NULL,
-    certifying_officer TEXT NOT NULL DEFAULT 'SYSTEM-GENERATED',
-    generated_at TEXT NOT NULL,
-    integrity_hash TEXT NOT NULL CHECK (length(integrity_hash) = 64)
-);
-
-CREATE TABLE IF NOT EXISTS evidence (
-    evidence_id TEXT PRIMARY KEY,
-    case_id TEXT NOT NULL REFERENCES cases(case_id) ON DELETE CASCADE,
-    evidence_type TEXT NOT NULL CHECK (evidence_type IN ('PACKAGE_PHOTO', 'CALIBRATION_FRAME', 'ANNOTATED_OVERLAY')),
-    file_path TEXT NOT NULL,
-    sha256_hash TEXT NOT NULL CHECK (length(sha256_hash) = 64),
-    capture_timestamp TEXT NOT NULL,
-    captured_by TEXT NOT NULL,
-    bsa_s63_certificate_id TEXT REFERENCES evidence_certificates(certificate_id) ON DELETE SET NULL
-);
-
-CREATE TABLE IF NOT EXISTS audit_log (
-    log_id TEXT PRIMARY KEY,
-    case_id TEXT REFERENCES cases(case_id) ON DELETE SET NULL,
-    actor_id TEXT NOT NULL,
-    action TEXT NOT NULL,
-    timestamp TEXT NOT NULL,
-    prev_hash TEXT NOT NULL,
-    entry_hash TEXT NOT NULL CHECK (length(entry_hash) = 64)
-);
-"""
+from lmd import config
 
 
-def ensure_schema(conn: sqlite3.Connection) -> None:
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.executescript(_SCHEMA)
-    _ensure_ocr_boxes_column(conn)
-    conn.commit()
+def _load_credentials() -> credentials.Certificate:
+    if not config.FIRESTORE_CREDENTIALS_JSON:
+        raise RuntimeError(
+            "FIRESTORE_CREDENTIALS_JSON is not set. Paste the full contents of a "
+            "Firebase service account key JSON file into that env var (see "
+            ".env.example) -- there is no other supported way to reach Firestore."
+        )
+    try:
+        service_account_info = json.loads(config.FIRESTORE_CREDENTIALS_JSON)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "FIRESTORE_CREDENTIALS_JSON is not valid JSON. It must be the raw "
+            "contents of the service account key file, not a file path."
+        ) from exc
+    return credentials.Certificate(service_account_info)
 
 
-def _ensure_ocr_boxes_column(conn: sqlite3.Connection) -> None:
-    """Additive migration: frontend Phase 0 needs OCR box geometry (polygon,
-    text, confidence, font metrics) alongside a scan, but ExtractionEnvelope
-    is deliberately geometry-free (extraction/contract.py), so this cannot
-    live in extraction_envelope_json. A guarded ALTER TABLE keeps existing
-    databases working without a destructive migration."""
-    columns = {row["name"] for row in conn.execute("PRAGMA table_info(scans)")}
-    if "ocr_boxes_json" not in columns:
-        conn.execute("ALTER TABLE scans ADD COLUMN ocr_boxes_json TEXT NOT NULL DEFAULT '[]'")
-
-
-def connect(db_path: str | Path) -> sqlite3.Connection:
-    # check_same_thread=False: a single request's connection is opened and
-    # closed within one FastAPI dependency scope, but ASGI test clients (and
-    # some ASGI servers) dispatch that scope onto a worker thread different
-    # from the one that will eventually garbage-collect/close it. There is
-    # never concurrent multi-thread access to the same connection object.
-    path = Path(db_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(path), check_same_thread=False)
-    ensure_schema(conn)
-    return conn
-
-
-def connect_memory() -> sqlite3.Connection:
-    conn = sqlite3.connect(":memory:", check_same_thread=False)
-    ensure_schema(conn)
-    return conn
+@lru_cache(maxsize=1)
+def get_client() -> Client:
+    """Return a process-wide Firestore client, initializing the underlying
+    firebase_admin App on first call. Cached because re-initializing the App
+    on every request is both wasteful and raises ValueError on the second
+    firebase_admin.initialize_app() call."""
+    if not firebase_admin._apps:
+        firebase_admin.initialize_app(_load_credentials())
+    return firestore.client()

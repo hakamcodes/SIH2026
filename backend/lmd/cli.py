@@ -1,5 +1,5 @@
 """CLI entry point: evaluate a fixture, scan a real image end-to-end, or
-generate a violation report PDF for a case already in the sqlite store."""
+generate a violation report PDF for a case already in Firestore."""
 from __future__ import annotations
 
 import argparse
@@ -124,37 +124,45 @@ def cmd_report(args: argparse.Namespace) -> None:
     if not args.case:
         raise SystemExit("usage: lmd report --case CASE_ID")
 
-    from lmd import config
+    import base64
+
     from lmd.evidence import report_pdf
     from lmd.evidence.bsa63 import generate_certificate
     from lmd.evidence.hashing import sha256_bytes
     from lmd.store import db, repository
 
-    conn = db.connect(config.DB_PATH)
-    try:
-        case = repository.get_case(conn, args.case)
-        if case is None:
-            raise SystemExit(f"case not found: {args.case}")
-        scan = repository.get_scan(conn, case["scan_id"])
-        evidence_list = repository.list_evidence(conn, args.case)
+    conn = db.get_client()
+    case = repository.get_case(conn, args.case)
+    if case is None:
+        raise SystemExit(f"case not found: {args.case}")
+    scan = repository.get_scan(conn, case["scan_id"])
+    evidence_list = repository.list_evidence(conn, args.case)
 
-        pdf_bytes = report_pdf.generate_report(case, scan, evidence_list, inspector=None)
-        doc_hash = sha256_bytes(pdf_bytes)
-        cert = generate_certificate(
-            device_identification="lmd-cli",
-            production_process_description="lmd report --case (CLI-generated)",
-            record_sha256=doc_hash,
-        )
-        repository.insert_certificate(conn, cert)
+    pdf_bytes = report_pdf.generate_report(case, scan, evidence_list, inspector=None)
+    doc_hash = sha256_bytes(pdf_bytes)
+    cert = generate_certificate(
+        device_identification="lmd-cli",
+        production_process_description="lmd report --case (CLI-generated)",
+        record_sha256=doc_hash,
+    )
+    repository.insert_certificate(conn, cert)
+    repository.save_report(
+        conn,
+        case_id=args.case,
+        pdf_base64=base64.b64encode(pdf_bytes).decode("ascii"),
+        document_sha256=doc_hash,
+        certificate_id=cert.certificate_id,
+    )
 
-        out_path = _REPO_ROOT / "data" / "uploads" / "reports" / f"{args.case}.pdf"
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_bytes(pdf_bytes)
-        print(f"Report written to {out_path}")
-        print(f"Document SHA-256: {doc_hash}")
-        print(f"Certificate ID: {cert.certificate_id}")
-    finally:
-        conn.close()
+    # Also drop a local copy for CLI convenience -- this file is not the
+    # system of record (the Firestore reports/ document is); it just saves
+    # re-downloading the PDF from the API to look at it.
+    out_path = _REPO_ROOT / "data" / "uploads" / "reports" / f"{args.case}.pdf"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(pdf_bytes)
+    print(f"Report written to {out_path}")
+    print(f"Document SHA-256: {doc_hash}")
+    print(f"Certificate ID: {cert.certificate_id}")
 
 
 def main() -> None:

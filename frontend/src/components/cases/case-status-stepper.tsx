@@ -84,10 +84,11 @@ export function CaseStatusStepper({ status, caseId, onChanged }: CaseStatusStepp
                 title={reachable ? `Advance to ${entry.label}` : entry.label}
                 className={cn(
                   "flex items-center gap-1.5 rounded-sm border px-2 py-1.5 text-xs font-medium transition-colors duration-[var(--dur-fast)]",
-                  active && "border-foreground bg-foreground text-background",
-                  done && "border-border bg-surface-subtle text-fg-muted",
+                  active &&
+                    "animate-pulse border-transparent bg-gradient-primary text-primary-foreground shadow-md",
+                  done && "border-[var(--verdict-compliant-border)] bg-[var(--verdict-compliant-bg)] text-[var(--verdict-compliant-fg)]",
                   !active && !done && "border-dashed border-border text-fg-subtle",
-                  reachable && !active && "border-border bg-surface text-foreground hover:border-border-strong",
+                  reachable && !active && "border-border bg-surface text-foreground hover:border-border-strong hover:shadow-sm",
                   reachable && "cursor-pointer",
                   !reachable && "cursor-default",
                 )}
@@ -104,7 +105,7 @@ export function CaseStatusStepper({ status, caseId, onChanged }: CaseStatusStepp
               {!isLast && (
                 <span
                   aria-hidden="true"
-                  className={cn("mx-1 h-px w-4", done ? "bg-foreground" : "bg-border")}
+                  className={cn("mx-1 h-0.5 w-4 rounded-full transition-colors duration-[var(--dur)]", done ? "bg-gradient-primary" : "bg-border")}
                 />
               )}
             </li>

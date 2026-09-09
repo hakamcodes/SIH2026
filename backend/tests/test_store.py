@@ -1,24 +1,30 @@
-"""Store layer: schema creation, scan/case persistence, the reason-to-believe
+"""Store layer: Firestore-backed scan/case persistence, the reason-to-believe
 hard gate (CLAUDE.md invariant 12), and the hash-chained audit log.
+
+Runs against tests.fakes.fake_firestore.FakeFirestoreClient rather than a
+live Firestore project or the Firestore emulator -- this machine has neither
+a service account nor a JRE to run the emulator (CLAUDE.md section 2). The
+fake implements the exact subset of the Firestore client API repository.py
+and audit.py call, so these tests exercise the real query shapes.
 """
+from pathlib import Path
+
 import pytest
 from lmd.engine.engine import RuleEngine
 from lmd.engine.loader import load_rules
-from lmd.store import audit, db, repository
+from lmd.store import audit, repository
 from lmd.store.models import CaseStatus
 from lmd.store.repository import ReasonToBelieveRequired
 
+from .fakes.fake_firestore import FakeFirestoreClient
 from .fixtures.compliance_test_cases import TEST_CASES
-from pathlib import Path
 
 RULES_PATH = Path(__file__).resolve().parents[2] / "packages" / "rules" / "lmd_rules.v1.json"
 
 
 @pytest.fixture
 def conn():
-    connection = db.connect_memory()
-    yield connection
-    connection.close()
+    return FakeFirestoreClient()
 
 
 @pytest.fixture(scope="module")
@@ -37,7 +43,7 @@ def _make_scan(conn, engine):
         ruleset_version="v1",
         result=result,
         extraction_envelope=case["input_data"],
-        image_paths=["data/uploads/x.jpg"],
+        images_base64={},
     )
 
 
@@ -103,8 +109,8 @@ def test_audit_log_chain_verifies(conn, engine):
 def test_audit_log_tamper_detected(conn, engine):
     scan_id = _make_scan(conn, engine)
     case_id = repository.create_case(conn, scan_id, actor_id="inspector-1")
-    conn.execute("UPDATE audit_log SET action = 'TAMPERED' WHERE case_id = ?", (case_id,))
-    conn.commit()
+    for entry in conn.collection("audit_log").where("case_id", "==", case_id).stream():
+        conn.collection("audit_log").document(entry.id).update({"action": "TAMPERED"})
     assert audit.verify(conn) is False
 
 

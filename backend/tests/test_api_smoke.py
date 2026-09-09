@@ -1,13 +1,17 @@
 """End-to-end API smoke test: upload a real research image, get a scan
 verdict, open a case, hit the reason-to-believe gate, confirm it properly,
-attach evidence, and generate a certified report. No mocked steps -- this
-exercises the real pipeline_a + rule engine + sqlite store + PDF generation.
+attach evidence, and generate a certified report. No mocked steps except
+persistence -- this exercises the real pipeline_a + rule engine + PDF
+generation against tests.fakes.fake_firestore.FakeFirestoreClient in place
+of a live Firestore project (see that module's docstring for why).
 """
 import os
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
+from .fakes.fake_firestore import FakeFirestoreClient
 
 os.environ.setdefault("LMD_INSPECTOR_API_TOKEN", "test-token")
 
@@ -17,23 +21,16 @@ AUTH_HEADERS = {"Authorization": "Bearer test-token", "X-Inspector-Id": "inspect
 
 
 @pytest.fixture
-def client(tmp_path, monkeypatch):
-    from lmd import config
-
-    monkeypatch.setattr(config, "DB_PATH", tmp_path / "lmd.db")
-    monkeypatch.setattr(config, "UPLOAD_DIR", tmp_path / "uploads")
-
-    from lmd.api import scan as scan_module
-    from lmd.api import cases as cases_module
-    from lmd.api import reports as reports_module
-
-    monkeypatch.setattr(scan_module, "config", config)
-    monkeypatch.setattr(cases_module, "config", config)
-    monkeypatch.setattr(reports_module, "config", config)
-
+def client():
+    from lmd.api.deps import get_db
     from lmd.api.main import app
 
-    return TestClient(app)
+    fake_client = FakeFirestoreClient()
+    app.dependency_overrides[get_db] = lambda: fake_client
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_db, None)
 
 
 pytestmark = pytest.mark.slow

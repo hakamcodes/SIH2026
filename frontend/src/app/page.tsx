@@ -40,23 +40,26 @@ export default function IdentityPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-10">
+    <div className="bg-gradient-hero flex flex-1 items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <div className="flex size-10 items-center justify-center rounded-md border border-border bg-surface-subtle">
-            <Scale className="size-5 text-foreground" aria-hidden="true" />
+          <div className="animate-hero-icon glow-compliant flex size-14 items-center justify-center rounded-2xl bg-gradient-primary shadow-lg">
+            <Scale className="size-6 text-primary-foreground" aria-hidden="true" />
           </div>
-          <h1 className="mt-4 text-lg font-semibold tracking-tight">
+          <h1 className="text-page-title animate-fade-in-up mt-4 text-2xl font-bold text-foreground" style={{ animationDelay: "80ms" }}>
             Legal Metrology Compliance Scanner
           </h1>
-          <p className="mt-1 text-xs text-fg-subtle">SIH Problem Statement 26034</p>
+          <p className="animate-fade-in-up mt-1 text-xs text-fg-subtle" style={{ animationDelay: "140ms" }}>
+            SIH Problem Statement 26034
+          </p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="flex flex-col gap-4 rounded-md border border-border bg-surface p-5"
+          className="shadow-panel animate-fade-in-up flex flex-col gap-4 rounded-md border border-border bg-surface p-5"
+          style={{ animationDelay: "200ms" }}
         >
-          <div className="flex flex-col gap-1.5">
+          <div className="stagger-item flex flex-col gap-1.5" style={{ "--stagger": 1 } as React.CSSProperties}>
             <Label htmlFor="name">Name</Label>
             <Input
               id="name"
@@ -68,7 +71,7 @@ export default function IdentityPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="stagger-item flex flex-col gap-1.5" style={{ "--stagger": 2 } as React.CSSProperties}>
             <Label htmlFor="designation">Designation</Label>
             <Input
               id="designation"
@@ -79,7 +82,7 @@ export default function IdentityPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="stagger-item flex flex-col gap-1.5" style={{ "--stagger": 3 } as React.CSSProperties}>
             <Label htmlFor="inspector-id">Inspector ID</Label>
             <Input
               id="inspector-id"
@@ -97,13 +100,18 @@ export default function IdentityPage() {
             </p>
           </div>
 
-          <Button type="submit" disabled={!canContinue} className="mt-1 gap-1.5">
-            Continue
-            <ArrowRight className="size-3.5" aria-hidden="true" />
-          </Button>
+          <div className="stagger-item" style={{ "--stagger": 4 } as React.CSSProperties}>
+            <Button type="submit" disabled={!canContinue} className="mt-1 w-full gap-1.5">
+              Continue
+              <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Button>
+          </div>
         </form>
 
-        <div className="mt-4 flex items-start gap-2 rounded-md border border-border bg-surface-subtle p-3">
+        <div
+          className="animate-fade-in-up mt-4 flex items-start gap-2 rounded-md border border-border bg-surface-subtle p-3"
+          style={{ animationDelay: "260ms" }}
+        >
           <ShieldAlert
             className="mt-0.5 size-3.5 shrink-0 text-fg-subtle"
             aria-hidden="true"

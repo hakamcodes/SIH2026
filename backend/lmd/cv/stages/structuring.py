@@ -25,8 +25,14 @@ _NET_QTY_MARKER_ONLY_RE = re.compile(
     r"NET\s*(?:WT|WEIGHT|QTY|QUANTITY|CONTENTS)\.?\s*[:\-]?\s*$", re.IGNORECASE
 )
 _MRP_RE = re.compile(
-    r"(?:MRP|M\.?R\.?P\.?)[^\d₹]{0,15}(?:Rs\.?|₹)?\s*[:\-]?\s*(\d+(?:[.,]\d+)?)", re.IGNORECASE
+    r"(?:MRP|M\.?R\.?P\.?)[^\d₹]{0,40}(?:Rs\.?|₹)?\s*[:\-]?\s*(\d+(?:[.,]\d+)?)", re.IGNORECASE
 )
+# RapidOCR sometimes splits a dense small-print MRP line into two boxes --
+# "MRP" (or "MRP (Incl. of all Taxes)") alone, then the "₹45.00" value on the
+# next box/line -- the same failure mode _NET_QTY_MARKER_ONLY_RE exists to
+# handle for net quantity. A line matching this has the marker but no digits
+# of its own, so parse_mrp knows to look at the following line.
+_MRP_MARKER_ONLY_RE = re.compile(r"^\s*(?:MRP|M\.?R\.?P\.?)\b[^\d₹]*$", re.IGNORECASE)
 _CURRENCY_MARKER_RE = re.compile(r"₹|Rs\.?")
 _PHONE_RE = re.compile(r"\+?91?[-\s]?\d{10}\b|\b1800[-\s]?\d{6}\b")
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
@@ -151,6 +157,25 @@ def parse_mrp(lines: list[str]) -> dict | None:
             value = float(m.group(1).replace(",", ""))
             currency = "₹" if "₹" in line else ("Rs." if _CURRENCY_MARKER_RE.search(line) else None)
             return {"value": value, "currency_marker": currency, "raw_text": line.strip()}
+    # OCR split the marker and the value across adjacent boxes -- join them
+    # and retry the same regex rather than accepting an unmarked number.
+    # Require a currency marker or a decimal value on the join: the marker
+    # line alone gives no gap-content guarantee the way a single OCR line
+    # does, so an unmarked whole number (e.g. a batch code on the next line)
+    # must not be mistaken for a price.
+    for i, line in enumerate(lines):
+        if _MRP_MARKER_ONLY_RE.search(line) and i + 1 < len(lines):
+            joined = f"{line.strip()} {lines[i + 1].strip()}"
+            m = _MRP_RE.search(joined)
+            if m:
+                raw_value = m.group(1)
+                has_currency = "₹" in joined or bool(_CURRENCY_MARKER_RE.search(joined))
+                has_decimal = "." in raw_value or "," in raw_value
+                if not (has_currency or has_decimal):
+                    continue
+                value = float(raw_value.replace(",", ""))
+                currency = "₹" if "₹" in joined else ("Rs." if _CURRENCY_MARKER_RE.search(joined) else None)
+                return {"value": value, "currency_marker": currency, "raw_text": joined}
     return None
 
 
@@ -270,4 +295,18 @@ def source_line_for(lines: list[str], key: str) -> str | None:
     for line in lines:
         if pattern.search(line):
             return line
+    if key == "mrp" and parse_mrp(lines) is not None:
+        # parse_mrp accepted a split-line (marker + value on adjacent boxes)
+        # read; mirror the same guard so the returned line matches what was
+        # actually accepted, and attach the marker line's own confidence.
+        for i, line in enumerate(lines):
+            if _MRP_MARKER_ONLY_RE.search(line) and i + 1 < len(lines):
+                joined = f"{line.strip()} {lines[i + 1].strip()}"
+                m = _MRP_RE.search(joined)
+                if m:
+                    raw_value = m.group(1)
+                    has_currency = "₹" in joined or bool(_CURRENCY_MARKER_RE.search(joined))
+                    has_decimal = "." in raw_value or "," in raw_value
+                    if has_currency or has_decimal:
+                        return line
     return None

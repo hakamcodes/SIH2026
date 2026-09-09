@@ -15,11 +15,13 @@ a sibling artifact, not embedded circularly inside the PDF.
 """
 from __future__ import annotations
 
+import base64
 import io
 from datetime import datetime, timezone
 from typing import Any
 
 import qrcode
+from PIL import Image as PILImage
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -35,6 +37,7 @@ from reportlab.platypus import (
 )
 
 from lmd.evidence.bsa63 import PDF_FOOTER_DISCLAIMER
+from lmd.evidence.image_codec import compress_for_storage
 from lmd.limitations import get_known_limitations
 
 _NAVY = colors.Color(10 / 255, 30 / 255, 80 / 255)
@@ -51,6 +54,15 @@ _SITEWIDE_DISCLAIMER = (
 _NOT_AVAILABLE = "Not available in this build (see roadmap; not a live feature)."
 
 
+def _esc(value: Any) -> str:
+    """Escape a raw data value for embedding inside a reportlab Paragraph,
+    which parses a small XML-like markup subset -- unescaped '&'/'<'/'>' in
+    case data (e.g. a legal-basis citation containing '&') would otherwise
+    raise or silently mis-render."""
+    text = "" if value is None else str(value)
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _qr_image(text: str, size_mm: float = 30) -> Image:
     qr = qrcode.QRCode(border=1)
     qr.add_data(text)
@@ -60,6 +72,28 @@ def _qr_image(text: str, size_mm: float = 30) -> Image:
     pil_img.save(buf, format="PNG")
     buf.seek(0)
     return Image(buf, width=size_mm * mm, height=size_mm * mm)
+
+
+def _embed_image(image_bytes: bytes | None, max_width_mm: float = 160, max_height_mm: float = 110) -> Image | None:
+    """Scale an in-memory image to fit within the given box, preserving
+    aspect ratio (reportlab's Image() distorts otherwise). Returns None
+    rather than raising if no bytes were supplied or they are unreadable --
+    a report must still generate for a case whose image is missing."""
+    if not image_bytes:
+        return None
+    try:
+        with PILImage.open(io.BytesIO(image_bytes)) as im:
+            w_px, h_px = im.size
+    except Exception:
+        return None
+    if not w_px or not h_px:
+        return None
+    aspect = h_px / w_px
+    width, height = max_width_mm, max_width_mm * aspect
+    if height > max_height_mm:
+        height = max_height_mm
+        width = height / aspect
+    return Image(io.BytesIO(image_bytes), width=width * mm, height=height * mm)
 
 
 def _status_color(status: str) -> colors.Color:
@@ -95,6 +129,16 @@ def generate_report(
     h2 = ParagraphStyle("h2", parent=styles["Heading2"], textColor=_NAVY)
     body = styles["BodyText"]
     small = ParagraphStyle("small", parent=styles["BodyText"], fontSize=8, textColor=colors.gray)
+    # Table-cell paragraph styles: reportlab's Table does not wrap raw
+    # strings -- a value wider than its colWidth simply overflows and is
+    # drawn on top of the neighbouring column. Wrapping every variable-length
+    # cell in a Paragraph (which *does* wrap to its cell width) is the fix
+    # for the Status/Message (and similar) overlap defect. White colour is
+    # set per-cell below for header rows since Paragraph text colour isn't
+    # controlled by TableStyle TEXTCOLOR commands.
+    cell = ParagraphStyle("cell", parent=styles["BodyText"], fontSize=7.5, leading=9.5)
+    cell_header = ParagraphStyle("cell_header", parent=cell, textColor=colors.white, fontName="Helvetica-Bold")
+    cell_mono = ParagraphStyle("cell_mono", parent=cell, fontName="Courier")
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=20 * mm, bottomMargin=20 * mm)
@@ -144,20 +188,30 @@ def generate_report(
 
     # --- Section 3: Legal Basis table ----------------------------------
     story.append(Paragraph("2. Legal Basis", h2))
-    legal_rows = [["Rule ID", "Legal Basis", "Status"]]
+    legal_rows = [
+        [Paragraph("Rule ID", cell_header), Paragraph("Legal Basis", cell_header), Paragraph("Status", cell_header)]
+    ]
     for r in scan["rule_results"]:
         if r["status"] in ("FAIL", "REVIEW"):
-            legal_rows.append([r["rule_id"], r["legal_basis"], r["status"]])
+            status_style = ParagraphStyle("st", parent=cell, textColor=_status_color(r["status"]), fontName="Helvetica-Bold")
+            legal_rows.append(
+                [
+                    Paragraph(_esc(r["rule_id"]), cell_mono),
+                    Paragraph(_esc(r["legal_basis"]), cell),
+                    Paragraph(_esc(r["status"]), status_style),
+                ]
+            )
     if len(legal_rows) == 1:
-        legal_rows.append(["--", "No failing or review rules.", "--"])
+        legal_rows.append([Paragraph("--", cell), Paragraph("No failing or review rules.", cell), Paragraph("--", cell)])
     legal_table = Table(legal_rows, colWidths=[25 * mm, 105 * mm, 25 * mm], repeatRows=1)
     legal_table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), _NAVY),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.gray),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
             ]
         )
     )
@@ -166,27 +220,56 @@ def generate_report(
 
     # --- Section 4: Capture Details -------------------------------------
     story.append(Paragraph("3. Capture Details", h2))
+    images_base64 = scan.get("images_base64") or {}
     story.append(
         Paragraph(
             f"Detection source: Inspector-captured scan. Scan source: {scan['scan_source']}. "
-            f"Image count: {len(scan.get('image_paths', []))}.",
+            f"Image count: {sum(1 for v in images_base64.values() if v)}.",
             body,
         )
     )
+    story.append(Spacer(1, 6))
+    image_slots = [
+        ("original", "Captured product photograph (original upload)"),
+        ("overlay", "Annotated overlay (OCR confidence colour-coded)"),
+    ]
+    embedded_any = False
+    for key, label in image_slots:
+        b64 = images_base64.get(key)
+        image_bytes = base64.b64decode(b64) if b64 else None
+        if image_bytes is not None:
+            # The PDF itself is stored as a single base64 field
+            # (repository.save_report), so both embedded images share that
+            # one field's 1 MiB Firestore ceiling -- a much tighter budget
+            # per image than the scan document gets, which has one field
+            # each. Re-compress down before embedding rather than reusing
+            # the scan's already-compressed bytes as-is.
+            image_bytes = compress_for_storage(image_bytes, max_bytes=200_000, max_dimension_px=900)
+        img = _embed_image(image_bytes)
+        if img is None:
+            continue
+        embedded_any = True
+        story.append(Paragraph(label, small))
+        story.append(img)
+        story.append(Spacer(1, 6))
+    if not embedded_any:
+        story.append(Paragraph("No capture image could be embedded (not stored with this scan).", body))
     story.append(Spacer(1, 8))
 
     # --- Section 5: Evidence Exhibits -----------------------------------
     story.append(Paragraph("4. Evidence Exhibits", h2))
     if evidence_list:
-        exhibit_rows = [["Exhibit #", "Type", "Capture Time", "SHA-256", "BSA S.63 Cert."]]
+        exhibit_rows = [
+            [Paragraph(h, cell_header) for h in ["Exhibit #", "Type", "Capture Time", "SHA-256", "BSA S.63 Cert."]]
+        ]
         for i, ev in enumerate(evidence_list, start=1):
             exhibit_rows.append(
                 [
-                    str(i),
-                    ev["evidence_type"],
-                    ev["capture_timestamp"],
-                    ev["sha256_hash"][:16] + "...",
-                    ev.get("bsa_s63_certificate_id") or "--",
+                    Paragraph(str(i), cell),
+                    Paragraph(_esc(ev["evidence_type"]), cell),
+                    Paragraph(_esc(ev["capture_timestamp"]), cell_mono),
+                    Paragraph(_esc(ev["sha256_hash"][:16] + "..."), cell_mono),
+                    Paragraph(_esc(ev.get("bsa_s63_certificate_id") or "--"), cell_mono),
                 ]
             )
         exhibit_table = Table(exhibit_rows, colWidths=[18 * mm, 30 * mm, 40 * mm, 40 * mm, 42 * mm], repeatRows=1)
@@ -194,9 +277,10 @@ def generate_report(
             TableStyle(
                 [
                     ("BACKGROUND", (0, 0), (-1, 0), _NAVY),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.gray),
-                    ("FONTSIZE", (0, 0), (-1, -1), 7),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                 ]
             )
         )
@@ -207,19 +291,38 @@ def generate_report(
 
     # --- Section 6: Rule-by-rule verdict table --------------------------
     story.append(Paragraph("5. Rule-by-Rule Verdict Table", h2))
-    rule_rows = [["Rule ID", "Category", "Severity", "Status", "Message"]]
+    rule_rows = [[Paragraph(h, cell_header) for h in ["Rule ID", "Category", "Severity", "Status", "Message"]]]
     for r in scan["rule_results"]:
-        rule_rows.append([r["rule_id"], r["category"], r["severity"], r["status"], r["message"][:80]])
-    rule_table = Table(rule_rows, colWidths=[20 * mm, 25 * mm, 20 * mm, 20 * mm, 85 * mm], repeatRows=1)
-    style_cmds = [
-        ("BACKGROUND", (0, 0), (-1, 0), _NAVY),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.gray),
-        ("FONTSIZE", (0, 0), (-1, -1), 7),
-    ]
-    for row_idx, r in enumerate(scan["rule_results"], start=1):
-        style_cmds.append(("TEXTCOLOR", (3, row_idx), (3, row_idx), _status_color(r["status"])))
-    rule_table.setStyle(TableStyle(style_cmds))
+        status_style = ParagraphStyle(
+            f"st_{r['rule_id']}", parent=cell, textColor=_status_color(r["status"]), fontName="Helvetica-Bold"
+        )
+        # No [:80] truncation: truncating a raw string was a symptom of the
+        # same "text doesn't fit its cell" problem this fix addresses --
+        # wrapping in a Paragraph lets the row grow taller instead, so the
+        # full message is always shown rather than silently cut off.
+        rule_rows.append(
+            [
+                Paragraph(_esc(r["rule_id"]), cell_mono),
+                Paragraph(_esc(r["category"]), cell),
+                Paragraph(_esc(r["severity"]), cell),
+                Paragraph(_esc(r["status"]), status_style),
+                Paragraph(_esc(r["message"]), cell),
+            ]
+        )
+    # Widths sum to 170mm (A4 minus 20mm margins each side); Message keeps
+    # the largest share since it holds the longest text.
+    rule_table = Table(rule_rows, colWidths=[20 * mm, 25 * mm, 20 * mm, 22 * mm, 83 * mm], repeatRows=1)
+    rule_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), _NAVY),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.gray),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ]
+        )
+    )
     story.append(rule_table)
     story.append(PageBreak())
 

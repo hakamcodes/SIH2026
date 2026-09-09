@@ -10,3 +10,5 @@ numpy>=2.1
 anthropic>=0.40
 python-dotenv>=1.0
 python-multipart>=0.0.9
+firebase-admin>=7.0
+pillow>=11.0

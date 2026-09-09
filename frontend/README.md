@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LMD frontend (Next.js)
 
-## Getting Started
+Talks to the FastAPI backend only through the server-side proxy at
+`src/app/api/lmd/[...path]/route.ts` -- the browser never calls the backend
+directly, so `LMD_INSPECTOR_API_TOKEN` never reaches client-side code.
 
-First, run the development server:
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Requires the backend running locally (`uvicorn lmd.main:app --reload --port 8000`
+from `backend/`) plus a local `.env.local` with at least:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+LMD_BACKEND_URL=http://localhost:8000
+LMD_INSPECTOR_API_TOKEN=<same value as the backend's LMD_INSPECTOR_API_TOKEN>
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploying on Vercel
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Import this repo into Vercel, set the project root to `frontend/`.
+2. Set these environment variables in the Vercel project settings (server-side
+   only -- do not prefix with `NEXT_PUBLIC_`, or they'd ship to the browser):
+   - `LMD_BACKEND_URL` -- the deployed backend's URL (e.g. the Render service
+     from `render.yaml` at the repo root).
+   - `LMD_INSPECTOR_API_TOKEN` -- must match the backend's `LMD_INSPECTOR_API_TOKEN`
+     exactly.
+3. Deploy. No build-time env vars are required -- every backend call happens
+   at request time through the proxy route, not during `next build`.

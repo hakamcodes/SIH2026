@@ -6,9 +6,10 @@ from pathlib import Path
 from lmd.engine.engine import RuleEngine
 from lmd.engine.loader import load_rules
 from lmd.evidence import bsa63, hashing, report_pdf
-from lmd.store import db, repository
+from lmd.store import repository
 from lmd.store.models import CaseStatus
 
+from .fakes.fake_firestore import FakeFirestoreClient
 from .fixtures.compliance_test_cases import TEST_CASES
 
 RULES_PATH = Path(__file__).resolve().parents[2] / "packages" / "rules" / "lmd_rules.v1.json"
@@ -16,12 +17,12 @@ RULES_PATH = Path(__file__).resolve().parents[2] / "packages" / "rules" / "lmd_r
 
 def test_generate_report_produces_valid_pdf_bytes():
     engine = RuleEngine(load_rules(RULES_PATH))
-    conn = db.connect_memory()
+    conn = FakeFirestoreClient()
     case_data = TEST_CASES[0]
     scan_date = case_data.get("scan_date", "2026-09-06")
     result = engine.evaluate(case_data["input_data"], scan_date=scan_date)
     scan_id = repository.create_scan(
-        conn, scan_date, "package_image", "v1", result, case_data["input_data"], ["img.jpg"]
+        conn, scan_date, "package_image", "v1", result, case_data["input_data"], images_base64={}
     )
     case_id = repository.create_case(conn, scan_id, actor_id="inspector-1")
     repository.update_case_status(

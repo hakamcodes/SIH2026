@@ -58,10 +58,10 @@ function MobileNav() {
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "flex min-h-11 items-center gap-2.5 border-l-2 px-4 text-sm",
+                      "flex min-h-11 items-center gap-2.5 border-l-2 px-4 text-sm transition-colors duration-[var(--dur-fast)]",
                       active
-                        ? "border-l-foreground bg-surface-subtle font-medium"
-                        : "border-l-transparent text-fg-muted",
+                        ? "border-l-primary bg-surface-subtle font-medium text-foreground"
+                        : "border-l-transparent text-fg-muted hover:bg-surface-subtle hover:text-foreground",
                     )}
                   >
                     <Icon className="size-4 shrink-0" aria-hidden="true" />
@@ -81,12 +81,12 @@ export function TopBar() {
   const { inspector, signOut } = useInspector();
 
   return (
-    <header className="flex h-[var(--topbar-h)] shrink-0 items-center gap-2 border-b border-border bg-surface px-2 sm:px-4">
+    <header className="shadow-sm relative z-10 flex h-[var(--topbar-h)] shrink-0 items-center gap-2 border-b border-border bg-surface/80 px-2 backdrop-blur-md sm:px-4">
       <MobileNav />
 
       <Link
         href="/"
-        className="flex items-center gap-2 text-sm font-semibold lg:hidden"
+        className="flex items-center gap-2 text-sm font-semibold text-primary lg:hidden"
       >
         <Scale className="size-4" aria-hidden="true" />
         Legal Metrology

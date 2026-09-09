@@ -74,18 +74,23 @@ export function ScanProcessingPanel({
               {!isLast && (
                 <span
                   aria-hidden="true"
-                  className={cn(
-                    "absolute top-7 left-[13px] h-[calc(100%-1.75rem)] w-px",
-                    state === "done" ? "bg-foreground" : "bg-border",
-                  )}
-                />
+                  className="absolute top-7 left-[13px] h-[calc(100%-1.75rem)] w-px bg-border"
+                >
+                  <span
+                    className={cn(
+                      "animate-draw-line block h-full w-full bg-gradient-primary",
+                      state !== "done" && "hidden",
+                    )}
+                  />
+                </span>
               )}
               <span
                 className={cn(
                   "z-10 flex size-7 shrink-0 items-center justify-center rounded-full border transition-colors duration-[var(--dur)]",
                   state === "done" &&
                     "border-[var(--verdict-compliant-border)] bg-[var(--verdict-compliant-bg)] text-[var(--verdict-compliant-fg)]",
-                  state === "active" && "border-foreground bg-surface text-foreground",
+                  state === "active" &&
+                    "border-primary bg-surface text-primary shadow-[0_0_0_4px_color-mix(in_oklab,var(--primary)_15%,transparent)]",
                   state === "pending" && "border-border bg-surface text-fg-subtle",
                 )}
                 aria-hidden="true"
@@ -111,9 +116,9 @@ export function ScanProcessingPanel({
 
                 {step.key === "uploading" && state === "active" && (
                   <div className="mt-2 max-w-xs">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-border">
+                    <div className="relative h-1.5 overflow-hidden rounded-full bg-border">
                       <div
-                        className="h-full rounded-full bg-foreground transition-[width] duration-150"
+                        className="shimmer relative h-full overflow-hidden rounded-full bg-gradient-primary transition-[width] duration-150"
                         style={{ width: `${uploadPercent}%` }}
                       />
                     </div>
@@ -124,7 +129,7 @@ export function ScanProcessingPanel({
                 {step.key === "processing" && state === "active" && (
                   <div className="mt-1.5 flex flex-col gap-1.5">
                     <div className="h-1 w-full max-w-xs overflow-hidden rounded-full bg-border">
-                      <div className="h-full w-1/3 rounded-full bg-foreground/70 animate-indeterminate" />
+                      <div className="h-full w-1/3 rounded-full bg-gradient-primary animate-indeterminate" />
                     </div>
                     <p className="text-xs text-fg-muted" aria-live="off">
                       {SERVER_STAGE_CAPTIONS[captionIndex % SERVER_STAGE_CAPTIONS.length]}

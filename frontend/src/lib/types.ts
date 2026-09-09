@@ -218,7 +218,7 @@ export interface ScanDetail {
   overall_verdict: Verdict;
   created_at: string;
   extraction_envelope: ExtractionEnvelope;
-  image_paths: string[];
+  images_base64: { original?: string; overlay?: string };
   ocr_boxes: OcrBox[];
   rule_results: RuleResultRow[];
 }
@@ -253,7 +253,7 @@ export interface Evidence {
   evidence_id: string;
   case_id: string;
   evidence_type: EvidenceType;
-  file_path: string;
+  file_base64: string;
   sha256_hash: string;
   capture_timestamp: string;
   captured_by: string;
@@ -300,7 +300,6 @@ export interface EvidenceUploadResponse {
 /** POST /api/v1/cases/{case_id}/report response. */
 export interface ReportGenerateResponse {
   case_id: string;
-  report_path: string;
   document_sha256: string;
   certificate: Bsa63Certificate;
   download_url: string;

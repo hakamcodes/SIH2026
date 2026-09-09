@@ -7,8 +7,10 @@ reading when the key is missing).
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
-import uuid
+import time
 from datetime import date
 from typing import Any
 
@@ -21,21 +23,25 @@ from lmd.cv.overlay import encode_png, render_overlay
 from lmd.cv.pipeline_a import PipelineAResult, run_pipeline_a
 from lmd.cv.reconcile import reconcile
 from lmd.evidence.hashing import sha256_bytes
+from lmd.evidence.image_codec import compress_for_storage, encode_base64
 from lmd.store import repository
 
 from .deps import get_db, get_engine
 
 router = APIRouter(prefix="/api/v1", tags=["scan"])
+logger = logging.getLogger(__name__)
 
 
 def _maybe_run_pipeline_b(image_bytes: bytes) -> dict[str, Any]:
     if not os.environ.get("ANTHROPIC_API_KEY"):
+        logger.info("pipeline B skipped: ANTHROPIC_API_KEY not set")
         return {}
     from lmd.cv.pipeline_b import extract_with_vision
 
     try:
         return extract_with_vision(image_bytes)
     except Exception:  # noqa: BLE001 -- a vision-pipeline failure must never break the scan
+        logger.exception("pipeline B failed; continuing with pipeline A only")
         return {}
 
 
@@ -96,8 +102,16 @@ async def create_scan(
 
     effective_scan_date = scan_date or date.today().isoformat()
 
-    pipeline_a_result = run_pipeline_a(cv_image)
-    vision_fields = _maybe_run_pipeline_b(image_bytes)
+    t0 = time.perf_counter()
+    # Pipeline A (CPU-bound OCR) and pipeline B (network-bound vision call,
+    # a no-op when no API key or on a cache hit) are independent -- running
+    # them concurrently in worker threads keeps pipeline B's latency off the
+    # critical path and stops either from blocking the event loop.
+    pipeline_a_result, vision_fields = await asyncio.gather(
+        asyncio.to_thread(run_pipeline_a, cv_image),
+        asyncio.to_thread(_maybe_run_pipeline_b, image_bytes),
+    )
+    logger.info("scan %s: pipelines A+B took %.2fs", scan_source, time.perf_counter() - t0)
     envelope = reconcile(pipeline_a_result, vision_fields, scan_source=scan_source)
 
     envelope["commodity"] = {
@@ -109,14 +123,15 @@ async def create_scan(
 
     result = engine.evaluate(envelope, scan_date=effective_scan_date)
 
-    config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    image_id = str(uuid.uuid4())
-    image_path = config.UPLOAD_DIR / f"{image_id}.jpg"
-    image_path.write_bytes(image_bytes)
-
+    # Images live as base64 fields on the scan document, not files on disk --
+    # Render's disk is ephemeral, so anything meant to survive a redeploy has
+    # to go to Firestore. compress_for_storage keeps each field well under
+    # Firestore's 1 MiB document cap before the ~33% base64 overhead is added.
     overlay_image = render_overlay(cv_image, pipeline_a_result, result.overall_verdict.value)
-    overlay_path = config.UPLOAD_DIR / f"{image_id}_overlay.png"
-    overlay_path.write_bytes(encode_png(overlay_image))
+    images_base64 = {
+        "original": encode_base64(compress_for_storage(image_bytes, "JPEG")),
+        "overlay": encode_base64(compress_for_storage(encode_png(overlay_image), "PNG")),
+    }
 
     ocr_boxes = _serialize_ocr_boxes(pipeline_a_result)
 
@@ -127,7 +142,7 @@ async def create_scan(
         ruleset_version=config.RULESET_VERSION,
         result=result,
         extraction_envelope=envelope,
-        image_paths=[str(image_path), str(overlay_path)],
+        images_base64=images_base64,
         ocr_boxes=ocr_boxes,
     )
 

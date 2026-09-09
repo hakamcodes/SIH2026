@@ -2,6 +2,19 @@ import { VERDICT_VOCAB } from "@/lib/vocab";
 import type { Verdict } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** Verdict-specific solid gradient + glow, layered on top of the restrained
+ *  -fg/-bg/-border trio in VERDICT_VOCAB (which stays the source of truth for
+ *  every other rendering of a verdict -- table cells, filter chips, etc). This
+ *  bold treatment is reserved for the one full-width banner per scan page. */
+const VERDICT_BANNER_STYLE: Record<Verdict, string> = {
+  COMPLIANT:
+    "glow-compliant bg-[linear-gradient(135deg,var(--verdict-compliant-solid)_0%,var(--verdict-compliant-solid-2)_100%)] text-white border-transparent",
+  NON_COMPLIANT:
+    "glow-non-compliant bg-[linear-gradient(135deg,var(--verdict-non-compliant-solid)_0%,var(--verdict-non-compliant-solid-2)_100%)] text-white border-transparent",
+  NEEDS_REVIEW:
+    "glow-needs-review bg-[linear-gradient(135deg,var(--verdict-needs-review-solid)_0%,var(--verdict-needs-review-solid-2)_100%)] text-white border-transparent",
+};
+
 /**
  * The scan review page's single most important fact -- overall_verdict --
  * was previously a small badge tucked into a panel header. Promoted to a
@@ -15,14 +28,16 @@ export function VerdictBanner({ verdict }: { verdict: Verdict }) {
   return (
     <div
       className={cn(
-        "shadow-panel mb-4 flex items-center gap-3 rounded-md border px-4 py-3 sm:px-5 sm:py-3.5",
-        entry.className,
+        "animate-scale-in mb-4 flex items-center gap-4 rounded-lg border px-5 py-4 sm:px-6 sm:py-5",
+        VERDICT_BANNER_STYLE[verdict],
       )}
     >
-      <Icon className="size-6 shrink-0 sm:size-7" aria-hidden="true" />
+      <span className="animate-hero-icon flex size-11 shrink-0 items-center justify-center rounded-full bg-white/20 sm:size-12">
+        <Icon className="size-6 shrink-0 sm:size-7" aria-hidden="true" />
+      </span>
       <div className="min-w-0">
-        <p className="text-lg font-semibold tracking-tight sm:text-xl">{entry.label}</p>
-        {entry.hint && <p className="text-xs opacity-90 sm:text-sm">{entry.hint}</p>}
+        <p className="text-xl font-bold tracking-tight sm:text-2xl">{entry.label}</p>
+        {entry.hint && <p className="mt-0.5 text-xs opacity-90 sm:text-sm">{entry.hint}</p>}
       </div>
     </div>
   );

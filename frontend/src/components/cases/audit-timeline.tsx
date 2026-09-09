@@ -74,16 +74,22 @@ export function AuditTimeline({ caseId, refreshKey }: { caseId: string; refreshK
 
       <ol className="flex flex-col gap-0">
         {data.entries.map((entry, index) => (
-          <li key={entry.log_id} className="relative flex gap-3 pb-4 last:pb-0">
+          <li
+            key={entry.log_id}
+            style={{ "--stagger": index } as React.CSSProperties}
+            className="stagger-item relative flex gap-3 pb-4 last:pb-0"
+          >
             {index !== data.entries.length - 1 && (
               <span
                 aria-hidden="true"
                 className="absolute top-4 left-[5px] h-[calc(100%-1rem)] w-px bg-border"
-              />
+              >
+                <span className="animate-draw-line block h-full w-full bg-primary" />
+              </span>
             )}
             <span
               aria-hidden="true"
-              className="z-10 mt-1 size-2.5 shrink-0 rounded-full border-2 border-foreground bg-surface"
+              className="z-10 mt-1 size-2.5 shrink-0 rounded-full border-2 border-primary bg-surface"
             />
             <div className="min-w-0 flex-1">
               <p className="text-sm text-foreground">{entry.action}</p>

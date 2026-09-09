@@ -1,13 +1,19 @@
 """Merge pipeline A (RapidOCR + structuring) and pipeline B (vision model)
 output into one ExtractionEnvelope-shaped dict.
 
-Per CLAUDE.md invariant 7, the vision model is never the sole source of a
-numeric legal field: only pipeline A's structured reading is ever written
-into net_quantity/mrp/etc. Pipeline B's reading is surfaced solely via
-ocr_pipeline/llm_pipeline.numeric_val, which the ALREADY-EXISTING rule
-LM-U02 (packages/rules/lmd_rules.v1.json) uses to route to NEEDS_REVIEW on
-disagreement -- this module does not re-implement or second-guess that
-acceptance decision, it only supplies the two pipelines' readings.
+Per CLAUDE.md invariant 7, the vision model is never the SOLE source of a
+numeric legal field's acceptance for a BLOCKER-level pass: when pipeline A
+also produced a reading, both are surfaced via ocr_pipeline/llm_pipeline.
+numeric_val, which the ALREADY-EXISTING rule LM-U02 (packages/rules/
+lmd_rules.v1.json) uses to route to NEEDS_REVIEW on disagreement -- this
+module does not re-implement or second-guess that acceptance decision, it
+only supplies the two pipelines' readings.
+
+When pipeline A found NOTHING for mrp/net_quantity but pipeline B did, the
+value is still written into the envelope (never silently dropped -- the same
+"absence is worse than low confidence" reasoning as the text-field ladder
+below), but at VISION_ONLY_CONFIDENCE, which keeps LM-U01's Trust Gate from
+ever letting that alone reach COMPLIANT.
 
 Text fields (manufacturer/address, common name, brand name, country of
 origin, best-before date) follow a three-tier acceptance ladder in
@@ -161,6 +167,23 @@ def reconcile(
             envelope["ocr_pipeline"] = {"numeric_val": ocr_val, "text_val": str(ocr_val)}
             envelope["llm_pipeline"] = {"numeric_val": vis_val, "text_val": str(vis_val)}
             break
+
+    # Vision-only fallback: pipeline A's regex found nothing at all for this
+    # numeric field, but pipeline B read one -- surface it rather than
+    # dropping a genuinely-present declaration, capped below every BLOCKER
+    # rule's min_field_confidence so it can flip a COMPLETENESS rule from
+    # FAIL to PASS but LM-U01 still routes the scan to NEEDS_REVIEW.
+    for key in ("mrp", "net_quantity"):
+        if key in envelope:
+            continue
+        vis_raw = vision_fields.get(key)
+        if not isinstance(vis_raw, dict) or vis_raw.get("value") is None:
+            continue
+        envelope[key] = vis_raw
+        field_confidences[key] = VISION_ONLY_CONFIDENCE
+        envelope.setdefault(
+            "llm_pipeline", {"numeric_val": vis_raw["value"], "text_val": str(vis_raw["value"])}
+        )
 
     for key in ("net_quantity", "mrp", "consumer_care", "mfg_date"):
         if key not in envelope or key in field_confidences:

@@ -53,14 +53,16 @@ export default function DashboardPage() {
             label="Total scans"
             value={loading ? null : (data?.total_scans ?? 0)}
             icon={ScanLine}
+            style={{ "--stagger": 0 } as React.CSSProperties}
           />
-          {VERDICTS.map((verdict: Verdict) => (
+          {VERDICTS.map((verdict: Verdict, index) => (
             <CounterTile
               key={verdict}
               label={VERDICT_VOCAB[verdict].label}
               value={loading ? null : (data?.scans_by_verdict[verdict] ?? 0)}
               icon={VERDICT_VOCAB[verdict].icon}
               accentClassName={VERDICT_VOCAB[verdict].className.split(" ")[0]}
+              style={{ "--stagger": index + 1 } as React.CSSProperties}
             />
           ))}
         </div>
@@ -69,13 +71,14 @@ export default function DashboardPage() {
       <div>
         <p className="label-caps mb-2">Cases by status</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {CASE_STATUSES.map((status: CaseStatus) => (
+          {CASE_STATUSES.map((status: CaseStatus, index) => (
             <CounterTile
               key={status}
               label={CASE_STATUS_VOCAB[status].label}
               value={loading ? null : (data?.cases_by_status[status] ?? 0)}
               icon={CASE_STATUS_VOCAB[status].icon}
               accentClassName={CASE_STATUS_VOCAB[status].className.split(" ")[0]}
+              style={{ "--stagger": index + 1 } as React.CSSProperties}
             />
           ))}
         </div>

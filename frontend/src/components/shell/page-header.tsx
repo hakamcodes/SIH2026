@@ -66,9 +66,9 @@ export function PageHeader({
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          {eyebrow && <p className="label-caps mb-1 text-link">{eyebrow}</p>}
+          {eyebrow && <p className="label-caps mb-1 text-primary">{eyebrow}</p>}
           <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="text-2xl font-semibold tracking-tight text-balance">{title}</h1>
+            <h1 className="text-page-title text-balance text-foreground">{title}</h1>
             {meta}
           </div>
           {description && (

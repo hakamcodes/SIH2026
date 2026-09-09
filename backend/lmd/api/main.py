@@ -5,13 +5,41 @@ and the single counters dashboard. Run with:
 """
 from __future__ import annotations
 
+import asyncio
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import cases, images, limitations, metrics, reports, rules, scan
+from .deps import get_engine
 from .errors import register_error_handlers
+
+
+def _warm_ocr_engine() -> None:
+    # Constructing RapidOCR() only loads the ONNX model files; the first
+    # real inference call still pays extra one-time session/graph
+    # initialization cost on top of that (measured: ~10s slower than every
+    # call after it). Run one throwaway detect+cls+rec pass now so that
+    # cost lands at server startup, not on a demo's first upload.
+    import numpy as np
+
+    from lmd.cv.pipeline_a import _get_engine as get_ocr_engine
+
+    engine = get_ocr_engine()
+    engine(np.zeros((64, 64, 3), dtype=np.uint8), use_det=True, use_cls=True, use_rec=True)
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):  # noqa: ARG001 -- FastAPI lifespan signature
+    # RapidOCR's ONNX model load/first-inference and the rule-engine JSON
+    # load all cost real wall time; paying it once at startup instead of on
+    # the first request means a demo's first upload isn't the slowest one.
+    await asyncio.to_thread(_warm_ocr_engine)
+    await asyncio.to_thread(get_engine)
+    yield
+
 
 app = FastAPI(
     title="Legal Metrology Compliance Scanner (SIH 26034)",
@@ -20,6 +48,7 @@ app = FastAPI(
         "determine a violation and issue a notice. See /api/v1/rules for the "
         "current data-driven ruleset and /api/v1/limitations for known gaps."
     ),
+    lifespan=_lifespan,
 )
 
 # Frontend Phase 0: the API had no CORS policy at all, which blocks every

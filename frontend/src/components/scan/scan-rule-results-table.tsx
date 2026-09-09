@@ -24,17 +24,18 @@ export function ScanRuleResultsTable({ results }: { results: RuleResultRow[] }) 
     bucket.push(result);
     byCategory.set(result.category, bucket);
   }
+  let rowIndex = 0;
 
   return (
     <div className="overflow-x-auto">
-      <Table>
+      <Table className="table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-28">Rule</TableHead>
-            <TableHead className="w-28">Status</TableHead>
-            <TableHead className="w-24">Severity</TableHead>
-            <TableHead>Message</TableHead>
-            <TableHead className="min-w-56">Legal basis</TableHead>
+            <TableHead className="w-[10%] min-w-24">Rule</TableHead>
+            <TableHead className="w-[13%] min-w-28">Status</TableHead>
+            <TableHead className="w-[11%] min-w-24">Severity</TableHead>
+            <TableHead className="w-[38%]">Message</TableHead>
+            <TableHead className="w-[28%]">Legal basis</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -50,32 +51,41 @@ export function ScanRuleResultsTable({ results }: { results: RuleResultRow[] }) 
                     </span>
                   </TableCell>
                 </TableRow>
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const stagger = rowIndex++;
+                  return (
                   <TableRow
                     key={row.rule_id}
+                    style={{ "--stagger": stagger } as React.CSSProperties}
                     className={cn(
-                      row.severity === "BLOCKER" && "border-l-2 border-l-[var(--sev-blocker)]",
-                      row.severity === "MAJOR" && "border-l-2 border-l-[var(--sev-major)]",
+                      "stagger-item align-top transition-[color,background-color,border-color,box-shadow,transform] duration-[var(--dur-fast)] hover:-translate-y-px hover:shadow-sm",
+                      row.severity === "BLOCKER" && "border-l-2 border-l-[var(--sev-blocker)] bg-[var(--verdict-non-compliant-bg)]/30",
+                      row.severity === "MAJOR" && "border-l-2 border-l-[var(--sev-major)] bg-[var(--verdict-needs-review-bg)]/30",
                     )}
                   >
-                    <TableCell className="font-mono text-xs">{row.rule_id}</TableCell>
-                    <TableCell>
+                    <TableCell className="whitespace-normal break-words font-mono text-xs">
+                      {row.rule_id}
+                    </TableCell>
+                    <TableCell className="whitespace-normal break-words">
                       <RuleStatusBadge status={row.status} size="sm" />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="whitespace-normal break-words">
                       <SeverityLabel severity={row.severity} />
                     </TableCell>
-                    <TableCell className="max-w-md text-sm">{row.message}</TableCell>
-                    <TableCell className="text-xs text-fg-muted">
+                    <TableCell className="whitespace-normal break-words text-sm">
+                      {row.message}
+                    </TableCell>
+                    <TableCell className="whitespace-normal break-words text-xs text-fg-muted">
                       {row.legal_basis}
                       {!row.citation_verified && (
-                        <span className="ml-1.5 rounded-sm border border-border px-1 py-0.5 text-2xs">
+                        <span className="ml-1.5 inline-block rounded-sm border border-border px-1 py-0.5 text-2xs">
                           illustrative
                         </span>
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </Fragment>
             );
           })}

@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardList, Download, ImageOff, ListChecks, RotateCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ClipboardList, Download, FilePlus2, ImageOff, ListChecks, RotateCw } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/empty-state";
-import { ErrorState } from "@/components/common/error-state";
+import { ErrorNotice, ErrorState } from "@/components/common/error-state";
 import { LoadingPanel } from "@/components/common/loading-state";
 import { Panel, PanelBody, PanelHeader } from "@/components/common/panel";
+import { useInspector } from "@/components/shell/inspector-provider";
 import { useAsync } from "@/hooks/use-async";
-import { fetchScan } from "@/lib/api";
-import { isApiError } from "@/lib/errors";
+import { createCase, fetchScan } from "@/lib/api";
+import { describeUnknownError, isApiError } from "@/lib/errors";
 import { CONFIDENCE_VOCAB, confidenceBand } from "@/lib/vocab";
 
 import { AnnotatedCanvas } from "./annotated-canvas";
@@ -34,6 +37,24 @@ export function ScanDetailView({ scanId }: { scanId: string }) {
   );
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [pinnedIndex, setPinnedIndex] = useState<number | null>(null);
+  const [creatingCase, setCreatingCase] = useState(false);
+  const [createCaseError, setCreateCaseError] = useState<string | null>(null);
+  const { inspector } = useInspector();
+  const router = useRouter();
+
+  async function handleCreateCase() {
+    if (!inspector || creatingCase) return;
+    setCreatingCase(true);
+    setCreateCaseError(null);
+    try {
+      const created = await createCase(scanId, inspector.inspectorId);
+      toast.success("Case created — continue to inspector review");
+      router.push(`/cases/${created.case_id}`);
+    } catch (err) {
+      setCreateCaseError(describeUnknownError(err));
+      setCreatingCase(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -75,8 +96,31 @@ export function ScanDetailView({ scanId }: { scanId: string }) {
   return (
     <div>
       <VerdictBanner verdict={data.overall_verdict} />
+      <div className="stagger-item shadow-panel mb-4 flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface-subtle px-4 py-3" style={{ "--stagger": 1 } as React.CSSProperties}>
+        <div className="flex-1 text-sm text-fg-muted">
+          A report is produced after inspector review and a recorded reason to
+          believe — it is not generated automatically from a raw scan.
+        </div>
+        <Button
+          size="sm"
+          onClick={handleCreateCase}
+          disabled={!inspector || creatingCase}
+          className="gap-1.5 bg-gradient-cta text-accent-cta-foreground shadow-sm hover:shadow-md hover:-translate-y-px"
+        >
+          <FilePlus2 className="size-3.5" aria-hidden="true" />
+          {creatingCase ? "Creating case…" : "Create case for review"}
+        </Button>
+        {!inspector && (
+          <p className="text-2xs text-fg-subtle">Sign in with an inspector identity to create a case.</p>
+        )}
+      </div>
+      {createCaseError && (
+        <div className="mb-4">
+          <ErrorNotice>{createCaseError}</ErrorNotice>
+        </div>
+      )}
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-5">
-      <Panel className="xl:col-span-3">
+      <Panel className="stagger-item xl:col-span-3" style={{ "--stagger": 2 } as React.CSSProperties}>
         <PanelHeader
           title="Annotated image"
           description="Hover or click a box for its OCR evidence. Colour reflects extraction confidence only, never rule outcome."
@@ -110,7 +154,7 @@ export function ScanDetailView({ scanId }: { scanId: string }) {
                 <a
                   href={`/api/lmd/scans/${scanId}/overlay`}
                   download
-                  className="ml-auto inline-flex items-center gap-1 text-link hover:underline"
+                  className="ml-auto inline-flex items-center gap-1 text-link transition-colors duration-[var(--dur-fast)] hover:text-link-hover hover:underline"
                 >
                   <Download className="size-3" aria-hidden="true" />
                   Download annotated overlay
@@ -121,7 +165,10 @@ export function ScanDetailView({ scanId }: { scanId: string }) {
         </PanelBody>
       </Panel>
 
-      <Panel className="xl:sticky xl:top-[calc(var(--topbar-h)+1rem)] xl:col-span-2 xl:self-start">
+      <Panel
+        className="stagger-item xl:sticky xl:top-[calc(var(--topbar-h)+1rem)] xl:col-span-2 xl:self-start"
+        style={{ "--stagger": 3 } as React.CSSProperties}
+      >
         <PanelHeader
           title="Extracted fields"
           description="Net quantity, MRP, dates, manufacturer, consumer care."
@@ -143,7 +190,7 @@ export function ScanDetailView({ scanId }: { scanId: string }) {
         </PanelBody>
       </Panel>
 
-      <Panel className="xl:col-span-5">
+      <Panel className="stagger-item xl:col-span-5" style={{ "--stagger": 4 } as React.CSSProperties}>
         <PanelHeader
           title="Rule results"
           description="Every applicable rule, grouped by category, with legal basis and citation status."

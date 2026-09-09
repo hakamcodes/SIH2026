@@ -42,7 +42,10 @@ export function AnnotatedCanvas({
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
 
   return (
-    <div className="relative w-full select-none bg-surface-subtle" onMouseLeave={() => onHover(null)}>
+    <div
+      className="animate-fade-in-up relative w-full select-none bg-surface-subtle"
+      onMouseLeave={() => onHover(null)}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element -- served through
           the /api/lmd proxy, not a static/optimizable asset. */}
       <img
@@ -75,7 +78,8 @@ export function AnnotatedCanvas({
                 tabIndex={0}
                 role="button"
                 aria-label={`OCR text "${box.text}", ${(box.confidence * 100).toFixed(0)} percent confidence`}
-                className="cursor-pointer outline-none"
+                style={{ "--stagger": Math.min(index, 24) } as React.CSSProperties}
+                className="stagger-item cursor-pointer outline-none transition-[fill-opacity,stroke-width] duration-[var(--dur-fast)] ease-[var(--ease)]"
                 onMouseEnter={() => onHover(index)}
                 onFocus={() => onHover(index)}
                 onClick={() => onPin(pinnedIndex === index ? null : index)}

@@ -12,8 +12,18 @@ function ConfidenceTag({ field, confidences }: { field: string; confidences: Rec
   const band = confidenceBand(value);
   const vocab = CONFIDENCE_VOCAB[band];
   return (
-    <span className={cn("ml-1.5 font-mono text-2xs", vocab.text)}>
-      {(value * 100).toFixed(0)}%
+    <span className="ml-1.5 inline-flex items-center gap-1 align-middle">
+      <span className="h-1 w-8 overflow-hidden rounded-full bg-border" aria-hidden="true">
+        <span
+          className="block h-full origin-left rounded-full"
+          style={{
+            width: `${Math.round(value * 100)}%`,
+            backgroundColor: vocab.stroke,
+            animation: "confidence-fill 600ms var(--ease) 100ms forwards",
+          }}
+        />
+      </span>
+      <span className={cn("font-mono text-2xs", vocab.text)}>{(value * 100).toFixed(0)}%</span>
     </span>
   );
 }

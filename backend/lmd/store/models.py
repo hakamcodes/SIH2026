@@ -54,7 +54,7 @@ class Scan:
     ruleset_version: str
     overall_verdict: str
     extraction_envelope: dict = field(default_factory=dict)
-    image_paths: list[str] = field(default_factory=list)
+    images_base64: dict[str, str] = field(default_factory=dict)
     created_at: str = ""
 
 
@@ -98,7 +98,7 @@ class Evidence:
     evidence_id: str
     case_id: str
     evidence_type: EvidenceType
-    file_path: str
+    file_base64: str
     sha256_hash: str
     capture_timestamp: str
     captured_by: str

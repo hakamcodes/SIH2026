@@ -75,7 +75,7 @@ export function ReasonToBelieveDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ShieldAlert className="size-4 text-[var(--sev-blocker)]" aria-hidden="true" />
+            <ShieldAlert className="size-4 text-accent-cta" aria-hidden="true" />
             Reason to believe
           </DialogTitle>
           <DialogDescription>

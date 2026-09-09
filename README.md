@@ -9,7 +9,9 @@ See [CLAUDE.md](CLAUDE.md) for the full scope, invariants, and conflict
 resolutions this build follows, and [LEGAL_DISCLAIMERS.md](LEGAL_DISCLAIMERS.md)
 for what this system does and does not claim.
 
-**Backend is implemented; frontend is not (out of scope for this pass).**
+**Backend and frontend are both implemented.** See
+[frontend/README.md](frontend/README.md) for the Next.js app and
+[Deployment](#deployment) below for how the two are hosted separately.
 
 ## What's implemented
 
@@ -25,9 +27,11 @@ for what this system does and does not claim.
   renderer.
 - `backend/lmd/evidence/` -- SHA-256 hashing/chaining, a Section 63 BSA 2023
   certificate generator, and a 12-section violation report PDF.
-- `backend/lmd/store/` -- sqlite persistence (`ddl_postgres.sql` documents
-  the production target schema), a hash-chained audit log, and the
-  reason-to-believe hard gate.
+- `backend/lmd/store/` -- Firestore persistence, a hash-chained audit log,
+  and the reason-to-believe hard gate. Images (scan originals/overlays,
+  evidence uploads, generated report PDFs) are stored as base64 fields on
+  Firestore documents rather than files on disk, since the deploy target's
+  disk does not survive a redeploy.
 - `backend/lmd/api/` -- FastAPI endpoints: scan, case review, evidence
   attachment, report generation, ruleset introspection/hot-reload, and the
   single counters dashboard.
@@ -43,7 +47,9 @@ python -m pip install -U pip wheel
 pip install -r backend\requirements.txt -r backend\requirements-dev.txt
 
 copy .env.example .env
-# then fill in ANTHROPIC_API_KEY, LMD_INSPECTOR_API_TOKEN, etc.
+# then fill in ANTHROPIC_API_KEY, LMD_INSPECTOR_API_TOKEN, and
+# FIRESTORE_CREDENTIALS_JSON (required -- see .env.example for how to get it;
+# there is no local/offline database fallback).
 
 $env:PYTHONUTF8 = "1"
 python -c "from rapidocr import RapidOCR; print(RapidOCR()('research/mainResearch/02_flat_box_clean.jpg'))"
@@ -55,6 +61,42 @@ python -m pytest -q                    # everything, including real-image CV tes
 python -m lmd.cli scan ..\research\mainResearch\02_flat_box_clean.jpg --json --commodity-category personal_care --commodity-subtype toothpaste
 uvicorn lmd.main:app --reload --port 8000
 ```
+
+Frontend (separate terminal, requires the backend above running):
+
+```powershell
+cd frontend
+npm install
+copy .env.example .env.local   # then fill in LMD_BACKEND_URL / LMD_INSPECTOR_API_TOKEN
+npm run dev
+```
+
+## Deployment
+
+Backend and frontend deploy to different platforms and do not share a
+process or a filesystem:
+
+- **Backend -> Render.** `render.yaml` at the repo root is a Render Blueprint
+  targeting `backend/` as the service root, running
+  `uvicorn lmd.main:app --host 0.0.0.0 --port $PORT` on Render's free Python
+  web service tier. No persistent disk is configured or needed -- all
+  persistence is Firestore, reached via `FIRESTORE_CREDENTIALS_JSON`.
+- **Frontend -> Vercel.** See [frontend/README.md](frontend/README.md). The
+  frontend talks to the backend only through its own server-side proxy route,
+  so the backend's CORS policy (`LMD_CORS_ORIGINS`) does not gate the
+  browser -- it only matters if something calls the backend directly.
+- **Database -> Firestore.** Create a Firebase project, generate a service
+  account key, and paste its full JSON contents into `FIRESTORE_CREDENTIALS_JSON`
+  on the backend (both locally in `.env` and on Render). There is no other
+  supported persistence backend; a missing/invalid key fails loudly on first
+  database access rather than falling back to anything.
+
+Known operational tradeoffs of the free-tier path (not fixed by code): Render's
+free web service sleeps after 15 minutes idle and takes 30-60s to cold-start,
+and the CV dependencies (RapidOCR/onnxruntime/opencv) are memory- and
+CPU-heavy relative to the free tier's 512MB RAM and throttled shared vCPU, so
+a warm-instance scan is meaningfully slower there than the same scan run
+locally.
 
 ## Known, honestly-documented limitations
 
