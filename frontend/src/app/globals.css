@@ -81,7 +81,7 @@
    institutional palette so the ui/ primitives inherit it for free.
    --------------------------------------------------------------------------- */
 :root {
-  --radius: 0.25rem; /* 4px. Nothing in this product is rounder. */
+  --radius: 0.5rem; /* 8px. */
 
   --background: var(--slate-50);
   --foreground: var(--slate-900);
@@ -270,13 +270,13 @@
   --font-heading: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
   --font-legal: var(--font-eb-garamond), Georgia, serif;
 
-  --radius-sm: 0.125rem;
-  --radius-md: 0.25rem;
-  --radius-lg: 0.375rem;
-  --radius-xl: 0.375rem;
-  --radius-2xl: 0.375rem;
-  --radius-3xl: 0.375rem;
-  --radius-4xl: 0.375rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 0.875rem;
+  --radius-3xl: 1rem;
+  --radius-4xl: 1.25rem;
 
   --shadow-popover: 0 4px 12px -2px rgb(15 23 42 / 0.12);
   /* The one elevation token for a resting surface -- deliberately faint (not

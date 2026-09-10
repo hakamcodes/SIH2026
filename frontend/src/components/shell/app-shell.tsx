@@ -2,7 +2,6 @@
 
 import { usePathname } from "next/navigation";
 
-import { AdvisoryBanner } from "./advisory-banner";
 import { NavRail } from "./nav-rail";
 import { TopBar } from "./top-bar";
 
@@ -20,7 +19,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (isBareRoute(pathname)) {
     return (
       <div className="flex min-h-dvh flex-col">
-        <AdvisoryBanner />
         <div className="flex flex-1 flex-col">{children}</div>
       </div>
     );
@@ -28,7 +26,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <AdvisoryBanner />
       <div className="flex flex-1 overflow-hidden">
         <NavRail className="hidden lg:flex" />
         <div className="flex min-w-0 flex-1 flex-col">

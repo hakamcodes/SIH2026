@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Scale, ShieldAlert } from "lucide-react";
+import { ArrowRight, Scale } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useInspector } from "@/components/shell/inspector-provider";
-import { SITEWIDE_DISCLAIMER, WHAT_THIS_SYSTEM_IS } from "@/lib/disclaimers";
 
 /**
  * Not a login screen. The backend has no authentication endpoint at all
@@ -107,19 +106,6 @@ export default function IdentityPage() {
             </Button>
           </div>
         </form>
-
-        <div
-          className="animate-fade-in-up mt-4 flex items-start gap-2 rounded-md border border-border bg-surface-subtle p-3"
-          style={{ animationDelay: "260ms" }}
-        >
-          <ShieldAlert
-            className="mt-0.5 size-3.5 shrink-0 text-fg-subtle"
-            aria-hidden="true"
-          />
-          <p className="text-xs text-fg-muted">
-            {SITEWIDE_DISCLAIMER} {WHAT_THIS_SYSTEM_IS}
-          </p>
-        </div>
       </div>
     </div>
   );

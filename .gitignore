@@ -10,3 +10,9 @@ data/lmd.db
 dist/
 build/
 .env
+
+# internal agent-workflow docs -- not part of the judged submission
+CLAUDE.md
+AGENTS.md
+PPT_WORKFLOW.md
+DEMO_SCRIPT.md
