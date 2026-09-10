@@ -74,7 +74,17 @@ class PipelineAResult:
 
 @lru_cache(maxsize=1)
 def _get_engine() -> RapidOCR:
-    return RapidOCR()
+    # Caps onnxruntime's intra/inter-op thread pools, shared across the det/
+    # cls/rec sessions via EngineConfig.onnxruntime. Left at the library
+    # default (-1 = one thread per CPU core), a multi-core Render box lets
+    # each session spin up its own per-core native thread pool, which is
+    # what pushed a single-request scan over the 512MB instance cap.
+    return RapidOCR(
+        params={
+            "EngineConfig.onnxruntime.intra_op_num_threads": 1,
+            "EngineConfig.onnxruntime.inter_op_num_threads": 1,
+        }
+    )
 
 
 def _enhance_roi(gray_crop: np.ndarray) -> np.ndarray:

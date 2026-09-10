@@ -17,6 +17,17 @@ services:
     envVars:
       - key: PYTHONUTF8
         value: "1"
+      # OMP/glibc thread-arena settings to keep RapidOCR's onnxruntime
+      # sessions inside the 512MB instance cap. onnxruntime already gets
+      # intra_op/inter_op_num_threads=1 in backend/lmd/cv/pipeline_a.py;
+      # these two env vars close the remaining native-thread memory paths
+      # (OpenMP's own pool, glibc's per-thread malloc arenas).
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: OMP_WAIT_POLICY
+        value: "PASSIVE"
+      - key: MALLOC_ARENA_MAX
+        value: "2"
       - key: FIRESTORE_CREDENTIALS_JSON
         sync: false
       - key: ANTHROPIC_API_KEY

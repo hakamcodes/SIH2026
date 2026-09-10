@@ -58,6 +58,7 @@ _TEXT_FIELD_KEYS = (
     "brand_name",
     "country_of_origin",
     "best_before_date",
+    "mfg_date",
 )
 
 _NORMALIZE_RE = re.compile(r"[^\w\s]")
@@ -131,6 +132,7 @@ def reconcile(
         "brand_name": "brand_name",
         "country_of_origin": "country_of_origin",
         "best_before_date": "best_before_date",
+        "mfg_date": "mfg_date",
     }
     for env_key in _TEXT_FIELD_KEYS:
         if env_key in envelope:
