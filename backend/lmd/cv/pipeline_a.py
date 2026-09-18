@@ -40,10 +40,10 @@ from .stages.glare import apply_glare_mask
 
 _LOW_CONFIDENCE_THRESHOLD = 0.80
 # Longest-side cap (px) for detection/recognition and calibration search.
-# Chosen well above what any Rule 7 font-height measurement needs (those
-# operate on small per-box crops taken from the original-resolution image,
-# never from this capped frame) and well below typical 8-12MP phone photos.
-_MAX_DETECTION_DIM = 1800
+# Matched to the _API_MAX_DIM cap in api/scan.py: images arrive pre-resized
+# to ≤1280px so this cap is effectively a no-op for normal use, but it guards
+# edge cases (e.g. direct pipeline calls in tests) against runaway memory.
+_MAX_DETECTION_DIM = 1280
 
 logger = logging.getLogger(__name__)
 

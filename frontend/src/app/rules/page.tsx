@@ -30,12 +30,17 @@ function FilterChip({
       className={cn(
         "inline-flex min-h-8 items-center gap-1 rounded-sm border px-2 py-1 text-xs transition-[background-color,border-color,box-shadow,transform,color] duration-[var(--dur)]",
         active
-          ? "scale-105 border-transparent bg-gradient-primary text-primary-foreground shadow-sm"
+          ? "border-transparent bg-gradient-primary text-primary-foreground shadow-sm"
           : "border-border bg-surface text-fg-muted hover:border-border-strong hover:text-foreground hover:shadow-sm",
       )}
     >
       <Icon className="size-3" />
       {label}
+      {active && (
+        <span aria-hidden="true" className="ml-0.5 inline-flex size-3.5 items-center justify-center rounded-full bg-white/20 text-[9px] font-bold leading-none">
+          ✓
+        </span>
+      )}
     </button>
   );
 }
@@ -44,6 +49,8 @@ export default function RulesPage() {
   const [category, setCategory] = useState<RuleCategory | null>(null);
   const [severity, setSeverity] = useState<Severity | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const hasFilters = category !== null || severity !== null;
 
   return (
     <div>
@@ -83,7 +90,7 @@ export default function RulesPage() {
             ))}
           </div>
         </div>
-        {(category || severity) && (
+        {hasFilters && (
           <div className="flex items-end">
             <Button
               variant="ghost"
@@ -92,7 +99,9 @@ export default function RulesPage() {
                 setCategory(null);
                 setSeverity(null);
               }}
+              className="gap-1 text-fg-muted hover:text-foreground"
             >
+              <span aria-hidden="true">×</span>
               Clear filters
             </Button>
           </div>

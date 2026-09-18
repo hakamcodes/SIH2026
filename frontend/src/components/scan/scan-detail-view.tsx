@@ -58,11 +58,11 @@ export function ScanDetailView({ scanId }: { scanId: string }) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
-        <Panel className="xl:col-span-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        <Panel className="lg:col-span-3">
           <LoadingPanel />
         </Panel>
-        <Panel className="xl:col-span-2">
+        <Panel className="lg:col-span-2">
           <LoadingPanel />
         </Panel>
       </div>
@@ -119,8 +119,8 @@ export function ScanDetailView({ scanId }: { scanId: string }) {
           <ErrorNotice>{createCaseError}</ErrorNotice>
         </div>
       )}
-      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-5">
-      <Panel className="stagger-item xl:col-span-3" style={{ "--stagger": 2 } as React.CSSProperties}>
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-5">
+      <Panel className="stagger-item lg:col-span-3" style={{ "--stagger": 2 } as React.CSSProperties}>
         <PanelHeader
           title="Annotated image"
           description="Hover or click a box for its OCR evidence. Colour reflects extraction confidence only, never rule outcome."
@@ -166,7 +166,7 @@ export function ScanDetailView({ scanId }: { scanId: string }) {
       </Panel>
 
       <Panel
-        className="stagger-item xl:sticky xl:top-[calc(var(--topbar-h)+1rem)] xl:col-span-2 xl:self-start"
+        className="stagger-item xl:sticky xl:top-[calc(var(--topbar-h)+1rem)] lg:col-span-2 xl:self-start"
         style={{ "--stagger": 3 } as React.CSSProperties}
       >
         <PanelHeader

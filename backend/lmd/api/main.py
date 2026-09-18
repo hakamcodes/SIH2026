@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import cases, images, limitations, metrics, reports, rules, scan
+from . import cases, images, limitations, metrics, reports, rules, scan, scan_multi
 from .deps import get_engine
 from .errors import register_error_handlers
 
@@ -68,6 +68,7 @@ app.add_middleware(
 )
 
 register_error_handlers(app)
+app.include_router(scan_multi.router)  # must come before scan.router so /scans/multi is matched before /scans/{id}
 app.include_router(scan.router)
 app.include_router(cases.router)
 app.include_router(rules.router)

@@ -6,24 +6,64 @@ import { cn } from "@/lib/utils";
 
 /** field_confidences is keyed by TOP-LEVEL field name only (engine.py does
  *  `path.split(".")[0]`), so "net_quantity" covers both value and unit. */
-function ConfidenceTag({ field, confidences }: { field: string; confidences: Record<string, number> | null | undefined }) {
+function ConfidenceRing({
+  field,
+  confidences,
+}: {
+  field: string;
+  confidences: Record<string, number> | null | undefined;
+}) {
   const value = confidences?.[field];
   if (value === undefined) return null;
+
   const band = confidenceBand(value);
   const vocab = CONFIDENCE_VOCAB[band];
+  const pct = Math.round(value * 100);
+
+  // SVG circular arc parameters
+  const r = 9; // radius
+  const cx = 12;
+  const cy = 12;
+  const circumference = 2 * Math.PI * r;
+  const dashOffset = circumference * (1 - value);
+
   return (
-    <span className="ml-1.5 inline-flex items-center gap-1 align-middle">
-      <span className="h-1 w-8 overflow-hidden rounded-full bg-border" aria-hidden="true">
-        <span
-          className="block h-full origin-left rounded-full"
-          style={{
-            width: `${Math.round(value * 100)}%`,
-            backgroundColor: vocab.stroke,
-            animation: "confidence-fill 600ms var(--ease) 100ms forwards",
-          }}
+    <span
+      className="ml-1.5 inline-flex items-center gap-1 align-middle"
+      title={`Confidence: ${pct}%`}
+    >
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        className="shrink-0"
+      >
+        {/* Background track */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
+          stroke="var(--border)"
+          strokeWidth="2.5"
         />
-      </span>
-      <span className={cn("font-mono text-2xs", vocab.text)}>{(value * 100).toFixed(0)}%</span>
+        {/* Filled arc */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
+          stroke={vocab.stroke}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          transform="rotate(-90 12 12)"
+        />
+
+      </svg>
+      <span className={cn("font-mono text-2xs tabular-nums", vocab.text)}>{pct}%</span>
     </span>
   );
 }
@@ -39,7 +79,7 @@ export function ExtractedFieldsPanel({ envelope }: { envelope: ExtractionEnvelop
         value={
           <>
             {formatQuantity(envelope.net_quantity?.value, envelope.net_quantity?.unit)}
-            <ConfidenceTag field="net_quantity" confidences={confidences} />
+            <ConfidenceRing field="net_quantity" confidences={confidences} />
           </>
         }
         mono
@@ -49,7 +89,7 @@ export function ExtractedFieldsPanel({ envelope }: { envelope: ExtractionEnvelop
         value={
           <>
             {formatRupees(envelope.mrp?.value)}
-            <ConfidenceTag field="mrp" confidences={confidences} />
+            <ConfidenceRing field="mrp" confidences={confidences} />
           </>
         }
         mono

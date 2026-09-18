@@ -51,7 +51,7 @@ export function AnnotatedCanvas({
       <img
         src={`/api/lmd/scans/${scanId}/image`}
         alt="Package, as submitted"
-        className="block h-auto w-full"
+        className="block h-auto w-full max-h-[60vh] object-contain"
         draggable={false}
         onLoad={(e) =>
           setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })

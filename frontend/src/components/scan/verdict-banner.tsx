@@ -32,13 +32,25 @@ export function VerdictBanner({ verdict }: { verdict: Verdict }) {
         VERDICT_BANNER_STYLE[verdict],
       )}
     >
-      <span className="animate-hero-icon flex size-11 shrink-0 items-center justify-center rounded-full bg-white/20 sm:size-12">
+      {/* Icon with pulse ring */}
+      <span className="animate-hero-icon relative flex size-11 shrink-0 items-center justify-center rounded-full bg-white/20 sm:size-12">
+        {/* Pulse ring — subtle, only plays once then loops slowly */}
+        <span
+          aria-hidden="true"
+          className="animate-pulse-ring absolute inset-0 rounded-full border-2 border-white/40"
+        />
         <Icon className="size-6 shrink-0 sm:size-7" aria-hidden="true" />
       </span>
-      <div className="min-w-0">
+
+      <div className="min-w-0 flex-1">
         <p className="text-xl font-bold tracking-tight sm:text-2xl">{entry.label}</p>
         {entry.hint && <p className="mt-0.5 text-xs opacity-90 sm:text-sm">{entry.hint}</p>}
       </div>
+
+      {/* Verdict shortcode — large, right-aligned, for quick scan at a distance */}
+      <span className="hidden shrink-0 font-mono text-3xl font-black tracking-widest opacity-20 sm:block" aria-hidden="true">
+        {verdict === "COMPLIANT" ? "PASS" : verdict === "NON_COMPLIANT" ? "FAIL" : "RVEW"}
+      </span>
     </div>
   );
 }

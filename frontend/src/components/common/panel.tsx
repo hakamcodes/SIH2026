@@ -13,7 +13,7 @@ export function Panel({
   return (
     <section
       className={cn(
-        "shadow-panel min-w-0 overflow-hidden rounded-md border border-border bg-surface",
+        "shadow-panel min-w-0 overflow-hidden rounded-md border border-border bg-surface transition-shadow duration-[var(--dur)]",
         className,
       )}
       {...props}

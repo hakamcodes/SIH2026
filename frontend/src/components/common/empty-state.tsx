@@ -14,6 +14,9 @@ import { cn } from "@/lib/utils";
  * treatment this design direction rules out. Kept its structure (icon,
  * title, description, action), its restraint (no illustration), and its
  * text-balance/max-width choices.
+ *
+ * Polished: icon container now uses a layered halo + gradient-primary
+ * accent to match the hero icon treatment, while keeping the same palette.
  */
 interface EmptyStateProps {
   icon: LucideIcon;
@@ -37,9 +40,19 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="flex size-11 items-center justify-center rounded-full border border-border bg-surface-subtle">
-        <Icon className="size-4.5 text-fg-subtle" aria-hidden="true" />
+      {/* Layered halo + icon container */}
+      <div className="relative flex items-center justify-center">
+        {/* Outer halo ring */}
+        <span
+          aria-hidden="true"
+          className="absolute size-16 rounded-full border border-border bg-surface-subtle opacity-60"
+        />
+        {/* Inner gradient icon container */}
+        <span className="relative flex size-11 items-center justify-center rounded-full border border-border bg-gradient-to-br from-surface to-surface-subtle shadow-sm">
+          <Icon className="size-4.5 text-fg-subtle" aria-hidden="true" />
+        </span>
       </div>
+
       <div className="flex max-w-sm flex-col items-center">
         <p className="text-sm font-medium text-foreground">{title}</p>
         {description && (

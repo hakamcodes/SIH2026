@@ -31,6 +31,41 @@ from .deps import get_db, get_engine
 router = APIRouter(prefix="/api/v1", tags=["scan"])
 logger = logging.getLogger(__name__)
 
+# Hard cap applied at the API boundary before any pipeline touches the image.
+# Pipeline A has an internal _MAX_DETECTION_DIM cap but pre-resizing here
+# ensures the full-res array is never kept alive during the async gather with
+# pipeline B, reducing peak RSS.
+_API_MAX_DIM = 1280
+
+
+def _resize_to_max_dim(image: np.ndarray, max_dim: int = _API_MAX_DIM) -> np.ndarray:
+    """Return image unchanged when already within max_dim; otherwise downscale
+    (AREA interpolation, best for downscaling) keeping aspect ratio. Never
+    upscales -- a small image must stay small."""
+    h, w = image.shape[:2]
+    longest = max(h, w)
+    if longest <= max_dim:
+        return image
+    scale = max_dim / longest
+    new_w, new_h = max(1, int(round(w * scale))), max(1, int(round(h * scale)))
+    return cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+
+
+def _detect_barcodes_safe(image: np.ndarray) -> list[dict[str, Any]]:
+    """Best-effort barcode/QR detection. Returns [] when zxingcpp is not
+    installed or detection fails -- barcode is always optional and must never
+    break an ordinary scan."""
+    try:
+        import zxingcpp  # type: ignore[import-untyped]
+
+        results = zxingcpp.read_barcodes(image)
+        return [{"format": str(r.format), "text": r.text} for r in results if r.text]
+    except ImportError:
+        return []
+    except Exception:  # noqa: BLE001
+        logger.debug("barcode detection failed (non-fatal)", exc_info=True)
+        return []
+
 
 def _maybe_run_pipeline_b(image_bytes: bytes) -> dict[str, Any]:
     if not os.environ.get("ANTHROPIC_API_KEY"):
@@ -96,11 +131,22 @@ async def create_scan(
 ):
     image_bytes = await image.read()
     np_arr = np.frombuffer(image_bytes, dtype=np.uint8)
-    cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-    if cv_image is None:
+    cv_image_raw = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    np_arr = None  # release the intermediate buffer; cv_image_raw owns the pixel data now
+    if cv_image_raw is None:
         raise HTTPException(status_code=400, detail="uploaded file is not a decodable image")
 
+    # Resize to the API-level cap before any pipeline work.  This keeps the
+    # peak-resident array small for the duration of the async gather below.
+    cv_image = _resize_to_max_dim(cv_image_raw)
+    if cv_image is not cv_image_raw:
+        cv_image_raw = None  # allow GC of the full-res array now that we have the smaller one
+
     effective_scan_date = scan_date or date.today().isoformat()
+
+    # Detect barcodes on the (already-resized) image before starting the OCR
+    # pipelines; detection is fast and purely optional.
+    barcodes = _detect_barcodes_safe(cv_image)
 
     t0 = time.perf_counter()
     # Pipeline A (CPU-bound OCR) and pipeline B (network-bound vision call,
@@ -111,6 +157,8 @@ async def create_scan(
         asyncio.to_thread(run_pipeline_a, cv_image),
         asyncio.to_thread(_maybe_run_pipeline_b, image_bytes),
     )
+    image_bytes_for_hash = image_bytes  # keep a reference for sha256 below
+    image_bytes = None  # release before the expensive overlay/storage steps
     logger.info("scan %s: pipelines A+B took %.2fs", scan_source, time.perf_counter() - t0)
     envelope = reconcile(pipeline_a_result, vision_fields, scan_source=scan_source)
 
@@ -128,10 +176,16 @@ async def create_scan(
     # to go to Firestore. compress_for_storage keeps each field well under
     # Firestore's 1 MiB document cap before the ~33% base64 overhead is added.
     overlay_image = render_overlay(cv_image, pipeline_a_result, result.overall_verdict.value)
+    # Encode cv_image so the stored original exactly matches the resized dimensions
+    # used by pipeline_a. This guarantees the frontend SVG viewBox aligns with the OCR boxes.
+    ok, encoded_jpg = cv2.imencode(".jpg", cv_image)
+    stored_original_bytes = encoded_jpg.tobytes() if ok else image_bytes_for_hash
+    
     images_base64 = {
-        "original": encode_base64(compress_for_storage(image_bytes, "JPEG")),
+        "original": encode_base64(compress_for_storage(stored_original_bytes, "JPEG")),
         "overlay": encode_base64(compress_for_storage(encode_png(overlay_image), "PNG")),
     }
+    overlay_image = None  # release overlay array after encoding
 
     ocr_boxes = _serialize_ocr_boxes(pipeline_a_result)
 
@@ -150,10 +204,11 @@ async def create_scan(
         "scan_id": scan_id,
         "overall_verdict": result.overall_verdict.value,
         "extraction_envelope": envelope,
-        "image_sha256": sha256_bytes(image_bytes),
+        "image_sha256": sha256_bytes(image_bytes_for_hash),
         "image_width": cv_image.shape[1],
         "image_height": cv_image.shape[0],
         "ocr_boxes": ocr_boxes,
+        "barcodes": barcodes,
         "calibration": _serialize_calibration(pipeline_a_result),
         "rule_results": {
             rid: {

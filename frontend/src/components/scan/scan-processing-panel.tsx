@@ -62,7 +62,7 @@ export function ScanProcessingPanel({
     <div
       role="status"
       aria-live="polite"
-      className="animate-in fade-in flex flex-col gap-5 rounded-md border border-border bg-surface-subtle/40 p-5 duration-300"
+      className="animate-in fade-in flex flex-col gap-5 rounded-md border border-border bg-surface-subtle/40 p-5 sm:p-6 duration-300"
     >
       <ol className="flex flex-col gap-0">
         {STEPS.map((step, index) => {
@@ -71,6 +71,7 @@ export function ScanProcessingPanel({
           const isLast = index === STEPS.length - 1;
           return (
             <li key={step.key} className="relative flex gap-3 pb-6 last:pb-0">
+              {/* Vertical connector line */}
               {!isLast && (
                 <span
                   aria-hidden="true"
@@ -84,17 +85,26 @@ export function ScanProcessingPanel({
                   />
                 </span>
               )}
+
+              {/* Step indicator */}
               <span
                 className={cn(
-                  "z-10 flex size-7 shrink-0 items-center justify-center rounded-full border transition-colors duration-[var(--dur)]",
+                  "relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full border transition-colors duration-[var(--dur)]",
                   state === "done" &&
                     "border-[var(--verdict-compliant-border)] bg-[var(--verdict-compliant-bg)] text-[var(--verdict-compliant-fg)]",
                   state === "active" &&
-                    "border-primary bg-surface text-primary shadow-[0_0_0_4px_color-mix(in_oklab,var(--primary)_15%,transparent)]",
+                    "border-primary bg-surface text-primary shadow-[0_0_0_4px_color-mix(in_oklab,var(--primary)_12%,transparent)]",
                   state === "pending" && "border-border bg-surface text-fg-subtle",
                 )}
                 aria-hidden="true"
               >
+                {/* Pulse ring on active step */}
+                {state === "active" && (
+                  <span
+                    aria-hidden="true"
+                    className="animate-pulse-ring absolute inset-0 rounded-full border border-primary"
+                  />
+                )}
                 {state === "done" ? (
                   <CheckCircle2 className="size-4" />
                 ) : state === "active" ? (
@@ -135,14 +145,20 @@ export function ScanProcessingPanel({
                       {SERVER_STAGE_CAPTIONS[captionIndex % SERVER_STAGE_CAPTIONS.length]}
                     </p>
                     <p className="font-mono text-2xs text-fg-subtle">
-                      Elapsed {elapsedLabel} — exact stage isn&apos;t reported by the backend; this
-                      can take up to a minute on the first scan while the OCR model loads.
+                      Elapsed{" "}
+                      <span className="tabular-nums">{elapsedLabel}</span>
+                      {" "}— exact stage isn&apos;t reported by the backend; this can take up
+                      to a minute on the first scan while the OCR model loads.
                     </p>
                   </div>
                 )}
 
                 {step.key === "finalizing" && state === "active" && (
                   <p className="mt-1 text-xs text-fg-muted">Preparing the scan review page…</p>
+                )}
+
+                {step.key === "uploading" && state === "done" && (
+                  <p className="mt-0.5 text-xs text-[var(--verdict-compliant-fg)]">Complete</p>
                 )}
               </div>
             </li>

@@ -196,6 +196,86 @@ export function createScanWithProgress(
   });
 }
 
+export interface CreateMultiScanParams {
+  front?: File;
+  back?: File;
+  side?: File;
+  other?: File;
+  scanSource?: string;
+  scanDate?: string;
+  commodityCategory?: string;
+  commoditySubtype?: string;
+  commodityIsImported?: boolean;
+  commodityIsExempt?: boolean;
+}
+
+function buildMultiScanFormData(params: CreateMultiScanParams): FormData {
+  const fd = new FormData();
+  if (params.front) fd.set("image_front", params.front);
+  if (params.back) fd.set("image_back", params.back);
+  if (params.side) fd.set("image_side", params.side);
+  if (params.other) fd.set("image_other", params.other);
+  if (params.scanSource) fd.set("scan_source", params.scanSource);
+  if (params.scanDate) fd.set("scan_date", params.scanDate);
+  if (params.commodityCategory) fd.set("commodity_category", params.commodityCategory);
+  if (params.commoditySubtype) fd.set("commodity_subtype", params.commoditySubtype);
+  if (params.commodityIsImported !== undefined)
+    fd.set("commodity_is_imported", String(params.commodityIsImported));
+  if (params.commodityIsExempt !== undefined)
+    fd.set("commodity_is_exempt", String(params.commodityIsExempt));
+  return fd;
+}
+
+/** POST /api/v1/scans/multi — accepts up to 4 panel images, processes them
+ *  sequentially on the server, returns same shape as createScanWithProgress
+ *  plus panel_sources and panels_processed. */
+export function createMultiScanWithProgress(
+  params: CreateMultiScanParams,
+  options: { onUploadProgress?: (percent: number) => void; signal?: AbortSignal } = {},
+): Promise<ScanCreateResponse> {
+  const formData = buildMultiScanFormData(params);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${PROXY_BASE}/scans/multi`);
+    xhr.responseType = "json";
+
+    if (options.onUploadProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          options.onUploadProgress!(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      const payload = xhr.response;
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(payload as ScanCreateResponse);
+      } else {
+        reject(parseApiErrorBody(xhr.status, payload));
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(
+        new ApiError({
+          status: 0,
+          kind: "backend_unreachable",
+          message: "Network error while uploading multi-panel images.",
+        }),
+      );
+    };
+
+    if (options.signal) {
+      if (options.signal.aborted) { xhr.abort(); return; }
+      options.signal.addEventListener("abort", () => xhr.abort());
+    }
+
+    xhr.send(formData);
+  });
+}
+
 /** GET /api/v1/scans/{scan_id} — unauthenticated (backend/lmd/api/scan.py:159). */
 export function fetchScan(scanId: string, signal?: AbortSignal): Promise<ScanDetail> {
   return apiFetch<ScanDetail>(`/scans/${encodeURIComponent(scanId)}`, { signal });

@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, ImageUp, ScanLine, X } from "lucide-react";
+import { CalendarClock, Camera, ImageUp, Layers, ScanLine, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -17,23 +17,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ErrorNotice } from "@/components/common/error-state";
-import { createScanWithProgress } from "@/lib/api";
+import {
+  createScanWithProgress,
+  createMultiScanWithProgress,
+  type CreateMultiScanParams,
+} from "@/lib/api";
 import { describeUnknownError } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 
+import { CameraCapture } from "./camera-capture";
 import { ScanProcessingPanel, type ScanProcessingPhase } from "./scan-processing-panel";
 
 const CAPTION_ROTATE_MS = 3400;
 
-/**
- * The dropzone is hand-rolled rather than adapted from a 21st.dev catalogue
- * component -- every dropzone in that search bundled multi-file management,
- * upload-progress bars, or a details form this endpoint doesn't take
- * (POST /api/v1/scans accepts exactly one `image` file). A single-file
- * dropzone with a preview and a remove control is around 60 lines; adapting
- * a 150-line multi-file component down to that would mean deleting more than
- * it kept.
- */
 const COMMODITY_CATEGORIES = [
   "biscuits",
   "bread",
@@ -47,6 +43,14 @@ const COMMODITY_CATEGORIES = [
   "bottled_water",
   "other",
 ] as const;
+
+type InputMode = "upload" | "camera";
+type PanelSlot = "back" | "side" | "other";
+const PANEL_LABELS: Record<PanelSlot, string> = {
+  back: "Back panel",
+  side: "Side panel",
+  other: "Other panel",
+};
 
 interface ScanFormState {
   scanDate: string;
@@ -62,9 +66,16 @@ export function ScanUploadForm() {
   const router = useRouter();
   const inputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [inputMode, setInputMode] = useState<InputMode>("upload");
+
+  // Front / primary image
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Extra panel images (back, side, other)
+  const [panelFiles, setPanelFiles] = useState<Partial<Record<PanelSlot, File>>>({});
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [processingPhase, setProcessingPhase] = useState<ScanProcessingPhase | null>(null);
@@ -95,18 +106,21 @@ export function ScanUploadForm() {
     if (dropped && dropped.type.startsWith("image/")) acceptFile(dropped);
   }
 
-  // Elapsed-time ticker for the "server-side processing" step -- real wall
-  // clock time, shown so the wait never reads as a frozen screen even though
-  // no genuine percentage is available for that phase.
+  function setPanelFile(slot: PanelSlot, f: File | null) {
+    setPanelFiles((prev) => {
+      const next = { ...prev };
+      if (f) next[slot] = f;
+      else delete next[slot];
+      return next;
+    });
+  }
+
   useEffect(() => {
     if (processingPhase !== "processing") return;
     const interval = setInterval(() => setElapsedSeconds((s) => s + 1), 1000);
     return () => clearInterval(interval);
   }, [processingPhase]);
 
-  // Rotating captions describing the pipeline's known stages. Cosmetic only
-  // -- they do not claim to reflect the server's actual current position,
-  // which this build has no way to observe (see ScanProcessingPanel).
   useEffect(() => {
     if (processingPhase !== "processing") return;
     const interval = setInterval(
@@ -115,6 +129,8 @@ export function ScanUploadForm() {
     );
     return () => clearInterval(interval);
   }, [processingPhase]);
+
+  const hasExtraPanels = Object.keys(panelFiles).length > 0;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -127,28 +143,51 @@ export function ScanUploadForm() {
     setCaptionIndex(0);
     setProcessingPhase("uploading");
 
+    const onUploadProgress = (percent: number) => {
+      setUploadPercent(percent);
+      if (percent >= 100) setProcessingPhase("processing");
+    };
+
     try {
-      const result = await createScanWithProgress(
-        {
-          image: file,
+      let result;
+      if (hasExtraPanels) {
+        const params: CreateMultiScanParams = {
+          front: file,
+          back: panelFiles.back,
+          side: panelFiles.side,
+          other: panelFiles.other,
           scanDate: form.scanDate || undefined,
           commodityCategory: form.commodityCategory || undefined,
           commoditySubtype: form.commoditySubtype || undefined,
           commodityIsImported: form.isImported,
           commodityIsExempt: form.isExempt,
-        },
-        {
-          onUploadProgress: (percent) => {
-            setUploadPercent(percent);
-            // The upload event fires up to 100% well before the server has
-            // even decoded the image; once the browser reports it complete,
-            // whatever happens next is server-side.
-            if (percent >= 100) setProcessingPhase("processing");
+        };
+        result = await createMultiScanWithProgress(params, { onUploadProgress });
+      } else {
+        result = await createScanWithProgress(
+          {
+            image: file,
+            scanDate: form.scanDate || undefined,
+            commodityCategory: form.commodityCategory || undefined,
+            commoditySubtype: form.commoditySubtype || undefined,
+            commodityIsImported: form.isImported,
+            commodityIsExempt: form.isExempt,
           },
-        },
-      );
+          { onUploadProgress },
+        );
+      }
+
       setProcessingPhase("finalizing");
-      toast.success(`Scan complete — ${result.overall_verdict.replace("_", " ").toLowerCase()}`);
+      const panels = result.panels_processed?.length
+        ? ` (${result.panels_processed.length} panels)`
+        : "";
+      toast.success(`Scan complete${panels} — ${result.overall_verdict.replace("_", " ").toLowerCase()}`);
+
+      // Show barcode info if detected
+      if (result.barcodes?.length) {
+        toast.info(`Barcode detected: ${result.barcodes[0].text}`);
+      }
+
       router.push(`/scan/${result.scan_id}`);
     } catch (error) {
       setSubmitError(describeUnknownError(error));
@@ -170,78 +209,161 @@ export function ScanUploadForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6 lg:flex-row">
-      <div className="flex-1">
-        <Label htmlFor={inputId} className="sr-only">
-          Package image
-        </Label>
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          className={cn(
-            "relative flex aspect-4/3 flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed border-border bg-surface-subtle p-6 text-center transition-[background-color,border-color,box-shadow] duration-[var(--dur-fast)]",
-            isDragging &&
-              "animate-dash-pulse border-primary bg-[color-mix(in_oklab,var(--surface-subtle),var(--primary)_8%)] shadow-md",
-          )}
-        >
-          {previewUrl ? (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element -- a
-                  local blob: object URL cannot be optimized by next/image. */}
-              <img
-                src={previewUrl}
-                alt="Selected package"
-                className="animate-scale-in absolute inset-0 size-full rounded-[calc(var(--radius)-1px)] object-contain p-2"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => acceptFile(null)}
-                aria-label="Remove selected image"
-                className="absolute top-2 right-2 size-8 bg-surface"
-              >
-                <X className="size-3.5" aria-hidden="true" />
-              </Button>
-              {file && (
-                <p className="absolute bottom-2 left-2 rounded-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-2xs text-fg-muted">
-                  {file.name} · {(file.size / 1024).toFixed(0)} KB
-                </p>
+      {/* Left: image capture area */}
+      <div className="flex-1 flex flex-col gap-3">
+        {/* Mode tabs */}
+        <div className="flex rounded-md border border-border overflow-hidden text-sm">
+          {(["upload", "camera"] as InputMode[]).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setInputMode(mode)}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-2.5 font-medium transition-colors",
+                inputMode === mode
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-surface text-fg-muted hover:bg-surface-subtle",
               )}
-            </>
-          ) : (
-            <>
-              <ImageUp className="size-7 text-fg-subtle" aria-hidden="true" />
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  Drop a package photo, or browse
-                </p>
-                <p className="mt-1 text-xs text-fg-muted">JPEG or PNG, one image per scan</p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Browse files
-              </Button>
-            </>
-          )}
-          <input
-            ref={fileInputRef}
-            id={inputId}
-            type="file"
-            accept="image/jpeg,image/png"
-            className="sr-only"
-            onChange={(e) => acceptFile(e.target.files?.[0] ?? null)}
-          />
+            >
+              {mode === "upload" ? (
+                <><ImageUp className="size-3.5" aria-hidden="true" /> Upload</>
+              ) : (
+                <><Camera className="size-3.5" aria-hidden="true" /> Camera</>
+              )}
+            </button>
+          ))}
         </div>
+
+        {/* Upload dropzone */}
+        {inputMode === "upload" && (
+          <div>
+            <Label htmlFor={inputId} className="sr-only">Package image</Label>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              className={cn(
+                "relative flex aspect-4/3 flex-col items-center justify-center gap-3 rounded-md border-2 border-dashed border-border bg-surface-subtle p-6 text-center transition-[background-color,border-color,box-shadow] duration-[var(--dur-fast)]",
+                isDragging && "animate-dash-pulse border-primary bg-[color-mix(in_oklab,var(--surface-subtle),var(--primary)_8%)] shadow-md",
+              )}
+            >
+              {previewUrl ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previewUrl}
+                    alt="Selected package"
+                    className="animate-scale-in absolute inset-0 size-full rounded-[calc(var(--radius)-1px)] object-contain p-2"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => acceptFile(null)}
+                    aria-label="Remove selected image"
+                    className="absolute top-2 right-2 size-8 bg-surface"
+                  >
+                    <X className="size-3.5" aria-hidden="true" />
+                  </Button>
+                  {file && (
+                    <p className="absolute bottom-2 left-2 rounded-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-2xs text-fg-muted">
+                      {file.name} · {(file.size / 1024).toFixed(0)} KB
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <ImageUp className="size-7 text-fg-subtle" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Drop a package photo, or browse</p>
+                    <p className="mt-1 text-xs text-fg-muted">JPEG or PNG · front panel (required)</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="min-h-[44px]"
+                  >
+                    Browse files
+                  </Button>
+                </>
+              )}
+              <input
+                ref={fileInputRef}
+                id={inputId}
+                type="file"
+                accept="image/jpeg,image/png"
+                className="sr-only"
+                onChange={(e) => acceptFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Camera capture */}
+        {inputMode === "camera" && (
+          <CameraCapture
+            onCapture={(captured) => {
+              acceptFile(captured);
+              setInputMode("upload");
+            }}
+          />
+        )}
+
+        {/* Extra panel slots (back / side / other) */}
+        {file && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-fg-muted">
+              <Layers className="size-3.5" aria-hidden="true" />
+              <span>Optional: add more panels for a complete multi-panel scan</span>
+            </div>
+            {(["back", "side", "other"] as PanelSlot[]).map((slot) => {
+              const slotFile = panelFiles[slot];
+              return (
+                <div key={slot} className="flex items-center gap-2 rounded-md border border-border bg-surface-subtle px-3 py-2">
+                  <span className="w-20 text-xs font-medium text-fg-muted shrink-0">{PANEL_LABELS[slot]}</span>
+                  {slotFile ? (
+                    <>
+                      <span className="flex-1 truncate font-mono text-2xs text-fg-muted">{slotFile.name}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 shrink-0"
+                        onClick={() => setPanelFile(slot, null)}
+                        aria-label={`Remove ${PANEL_LABELS[slot]}`}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </>
+                  ) : (
+                    <label className="flex-1 cursor-pointer text-xs text-link hover:text-link-hover">
+                      + Add image
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        className="sr-only"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) setPanelFile(slot, f);
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+              );
+            })}
+            {hasExtraPanels && (
+              <p className="text-2xs text-fg-subtle">
+                Multi-panel scan: panels processed sequentially on server to keep memory usage stable.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
+      {/* Right: form fields */}
       <div className="flex w-full flex-col gap-4 lg:w-80">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="scan-date" className="flex items-center gap-1.5">
@@ -292,14 +414,14 @@ export function ScanUploadForm() {
         </div>
 
         <div className="flex flex-col gap-2.5 rounded-md border border-border p-3">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm min-h-[44px]">
             <Checkbox
               checked={form.isImported}
               onCheckedChange={(v) => setForm((f) => ({ ...f, isImported: v === true }))}
             />
             Imported commodity
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm min-h-[44px]">
             <Checkbox
               checked={form.isExempt}
               onCheckedChange={(v) => setForm((f) => ({ ...f, isExempt: v === true }))}
@@ -311,10 +433,10 @@ export function ScanUploadForm() {
         <Button
           type="submit"
           disabled={!file || submitting}
-          className="w-full gap-1.5 bg-gradient-cta text-accent-cta-foreground shadow-sm transition-[box-shadow,transform] hover:shadow-md hover:-translate-y-px"
+          className="w-full min-h-[52px] gap-1.5 bg-gradient-cta text-accent-cta-foreground shadow-sm transition-[box-shadow,transform] hover:shadow-md hover:-translate-y-px text-base"
         >
           <ScanLine className="size-4" aria-hidden="true" />
-          Run scan
+          {hasExtraPanels ? `Run multi-panel scan (${Object.keys(panelFiles).length + 1} panels)` : "Run scan"}
         </Button>
         {submitError && <ErrorNotice>{submitError}</ErrorNotice>}
       </div>

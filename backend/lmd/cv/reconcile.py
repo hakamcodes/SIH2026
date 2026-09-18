@@ -160,6 +160,25 @@ def reconcile(
             envelope[env_key] = envelope_value
             field_confidences[env_key] = VISION_ONLY_CONFIDENCE
 
+    # Date-field LLM preference: if pipeline_a extracted a date but at low
+    # confidence (e.g. due to squished OCR like 'DateMay'), and pipeline_b
+    # produced a higher-confidence value for the same field, prefer the LLM
+    # value.  The confidence is capped at VISION_CONFIRMED_CONFIDENCE_CAP to
+    # keep LM-U01 honest when no OCR line independently corroborates it.
+    _DATE_VISION_KEYS = {"mfg_date": "mfg_date", "best_before_date": "best_before_date"}
+    for env_key, vision_key in _DATE_VISION_KEYS.items():
+        if env_key not in envelope:
+            continue  # pipeline_a didn't find it; the text-field ladder above handles absence
+        current_conf = field_confidences.get(env_key, 1.0)
+        if current_conf >= VISION_CONFIRMED_CONFIDENCE_CAP:
+            continue  # already high-confidence; no need to defer to LLM
+        raw_vision_value = vision_fields.get(vision_key)
+        if not raw_vision_value or not isinstance(raw_vision_value, str):
+            continue
+        # Pipeline_b produced a date string; prefer it and mark as corroborated.
+        envelope[env_key] = raw_vision_value
+        field_confidences[env_key] = VISION_CONFIRMED_CONFIDENCE_CAP
+
     # Dual-pipeline numeric trust signal for LM-U02. MRP is the higher-stakes
     # numeric field, so prefer it when both pipeline A and pipeline B produced
     # a candidate for it; fall back to net_quantity.

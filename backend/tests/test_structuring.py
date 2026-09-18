@@ -73,3 +73,73 @@ def test_structure_fields_only_includes_found_keys():
 
 def test_structure_fields_empty_when_nothing_found():
     assert structuring.structure_fields(["random text with nothing useful"]) == {}
+
+
+# ---------------------------------------------------------------------------
+# New tests: squished OCR date handling
+# ---------------------------------------------------------------------------
+
+def test_parse_mfg_date_month_name_form():
+    """'Mfg. Date May 2023' (well-formed) should parse as 2023-05-01."""
+    assert structuring.parse_mfg_date(["Mfg. Date May 2023"]) == "2023-05-01"
+
+
+def test_parse_mfg_date_squished_month_name():
+    """'Mfg. DateMay 2023' (squished OCR) should be normalised to '2023-05-01'."""
+    assert structuring.parse_mfg_date(["Mfg. DateMay 2023"]) == "2023-05-01"
+
+
+def test_parse_best_before_month_name_form():
+    """'Exp. Date Jan 2025' (well-formed) should parse as 2025-01-01."""
+    assert structuring.parse_best_before(["Exp. Date Jan 2025"]) == "2025-01-01"
+
+
+def test_parse_best_before_squished_month_name():
+    """'Exp. DateJan 2025' (squished OCR) should be normalised to '2025-01-01'."""
+    assert structuring.parse_best_before(["Exp. DateJan 2025"]) == "2025-01-01"
+
+
+# ---------------------------------------------------------------------------
+# New tests: unit normalization
+# ---------------------------------------------------------------------------
+
+def test_parse_net_quantity_no_space_ml():
+    """'500ml' (no space) should be parsed as value=500.0, unit='ml'."""
+    result = structuring.parse_net_quantity(["500ml"])
+    assert result == {"value": 500.0, "unit": "ml"}
+
+
+def test_parse_net_quantity_uppercase_ml():
+    """'500ML' should be normalised to unit='ml'."""
+    result = structuring.parse_net_quantity(["Net Wt 500ML"])
+    assert result is not None
+    assert result["unit"] == "ml"
+
+
+def test_parse_net_quantity_mixed_case_ml():
+    """'500mL' should be normalised to unit='ml'."""
+    result = structuring.parse_net_quantity(["500mL"])
+    assert result is not None
+    assert result["unit"] == "ml"
+
+
+# ---------------------------------------------------------------------------
+# New tests: fuzzy phrase matching in DSL registry
+# ---------------------------------------------------------------------------
+
+def test_contains_phrase_exact_match():
+    from lmd.dsl.registry import contains_phrase
+    assert contains_phrase("MRP Rs. 144/- (inclusive of all taxes)", "inclusive of all taxes") is True
+
+
+def test_contains_phrase_typo_texes():
+    """The real label has 'texes' instead of 'taxes'; fuzzy match must return True."""
+    from lmd.dsl.registry import contains_phrase
+    assert contains_phrase("MRP: Rs. 144/- (inclusive of all texes)", "inclusive of all taxes") is True
+
+
+def test_contains_phrase_completely_wrong_string():
+    """A totally different string must not fuzzy-match."""
+    from lmd.dsl.registry import contains_phrase
+    assert contains_phrase("MRP: Rs. 144/-", "inclusive of all taxes") is False
+

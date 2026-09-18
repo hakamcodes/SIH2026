@@ -300,10 +300,18 @@ def dashboard_counters(client: Client) -> dict:
     """The single counters page (CLAUDE.md section 1: 'a single counters page
     is the only dashboard'). No state/district/platform breakdown -- that
     tiering is explicitly out of scope. Firestore has no GROUP BY, so this
-    fetches and tallies in Python; fine at hackathon data volumes."""
+    fetches and tallies in Python; fine at hackathon data volumes.
+
+    Extended to return:
+    - top_failed_rules: top 10 rule IDs by FAIL count across all scans
+    - top_missing_fields: top fields absent from extraction_envelope
+    - compliance_by_category: {category: {verdict: count}}
+    - recent_scans: last 10 scans with id/date/verdict/created_at
+    """
     scans = [doc.to_dict() for doc in client.collection(_SCANS).stream()]
     cases = [doc.to_dict() for doc in client.collection(_CASES).stream()]
 
+    # --- existing counters -------------------------------------------------
     by_verdict: dict[str, int] = {}
     for scan in scans:
         verdict = scan.get("overall_verdict")
@@ -314,8 +322,59 @@ def dashboard_counters(client: Client) -> dict:
         status = case.get("status")
         by_case_status[status] = by_case_status.get(status, 0) + 1
 
+    # --- top failed rules --------------------------------------------------
+    rule_fail_counts: dict[str, int] = {}
+    for scan in scans:
+        for rr in scan.get("rule_results") or []:
+            if rr.get("status") == "FAIL":
+                rid = rr.get("rule_id", "unknown")
+                rule_fail_counts[rid] = rule_fail_counts.get(rid, 0) + 1
+    top_failed_rules = sorted(rule_fail_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+
+    # --- top missing fields ------------------------------------------------
+    _TRACKED_FIELDS = [
+        "net_quantity", "mrp", "manufacturer_or_packer_or_importer",
+        "common_or_generic_name", "country_of_origin", "best_before_date",
+        "mfg_date", "consumer_care",
+    ]
+    missing_counts: dict[str, int] = {}
+    for scan in scans:
+        envelope = scan.get("extraction_envelope") or {}
+        for field in _TRACKED_FIELDS:
+            if field not in envelope or envelope[field] is None:
+                missing_counts[field] = missing_counts.get(field, 0) + 1
+    top_missing_fields = sorted(missing_counts.items(), key=lambda x: x[1], reverse=True)
+
+    # --- compliance by commodity category ----------------------------------
+    compliance_by_category: dict[str, dict[str, int]] = {}
+    for scan in scans:
+        envelope = scan.get("extraction_envelope") or {}
+        commodity = envelope.get("commodity") or {}
+        category = commodity.get("category") or "unknown"
+        verdict = scan.get("overall_verdict") or "unknown"
+        cat_dict = compliance_by_category.setdefault(category, {})
+        cat_dict[verdict] = cat_dict.get(verdict, 0) + 1
+
+    # --- recent scans (last 10 by created_at) ------------------------------
+    sorted_scans = sorted(
+        scans, key=lambda s: s.get("created_at") or "", reverse=True
+    )
+    recent_scans = [
+        {
+            "scan_id": s.get("scan_id"),
+            "scan_date": s.get("scan_date"),
+            "overall_verdict": s.get("overall_verdict"),
+            "created_at": s.get("created_at"),
+        }
+        for s in sorted_scans[:10]
+    ]
+
     return {
         "total_scans": len(scans),
         "scans_by_verdict": by_verdict,
         "cases_by_status": by_case_status,
+        "top_failed_rules": [{"rule_id": rid, "fail_count": cnt} for rid, cnt in top_failed_rules],
+        "top_missing_fields": [{"field": f, "missing_count": cnt} for f, cnt in top_missing_fields],
+        "compliance_by_category": compliance_by_category,
+        "recent_scans": recent_scans,
     }

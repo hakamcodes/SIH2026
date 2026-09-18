@@ -13,6 +13,26 @@ from __future__ import annotations
 
 import re
 
+# ---------------------------------------------------------------------------
+# Devanagari digit normalization
+# Applied to every OCR line BEFORE any regex matching so that Hindi-script
+# digits on real Indian package labels (e.g. "MRP ₹३०.००") are handled
+# by the existing English-path patterns without modification.
+# TESTED: digit substitution (०-९ → 0-9) is a pure string transform; it
+# cannot produce a false match where none existed before.
+# UNTESTED on real Hindi-label images: the Hindi keyword patterns below
+# (मूल्य etc.) -- they are added as *alternatives* to English patterns only.
+# A comment in each pattern marks its test status.
+# ---------------------------------------------------------------------------
+_DEVANAGARI_DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
+
+
+def _normalize_devanagari(line: str) -> str:
+    """Translate Devanagari digits to ASCII digits.  All other characters,
+    including Devanagari script letters, are left unchanged."""
+    return line.translate(_DEVANAGARI_DIGITS)
+
+
 _NET_QTY_RE = re.compile(
     r"(?<![\w.])(\d+(?:\.\d+)?)\s*(kg|g|mg|ml|l|L|cm|mm|m)\b", re.IGNORECASE
 )
@@ -25,18 +45,72 @@ _NET_QTY_MARKER_ONLY_RE = re.compile(
     r"NET\s*(?:WT|WEIGHT|QTY|QUANTITY|CONTENTS)\.?\s*[:\-]?\s*$", re.IGNORECASE
 )
 _MRP_RE = re.compile(
-    r"(?:MRP|M\.?R\.?P\.?)[^\d₹]{0,40}(?:Rs\.?|₹)?\s*[:\-]?\s*(\d+(?:[.,]\d+)?)", re.IGNORECASE
+    # English: MRP / M.R.P. (tested, verified on English-label OCR output)
+    # Hindi synonyms: मूल्य (mulya), कीमत (keemat), एम.आर.पी (M.R.P. in Devanagari)
+    # UNTESTED on real Hindi-label images -- added as alternatives only;
+    # if a Hindi label is printed in Devanagari script, RapidOCR must first
+    # produce the Devanagari text before these patterns can match.
+    r"(?:MRP|M\.?R\.?P\.?|मूल्य|कीमत|एम\.?आर\.?पी\.?)[^\d₹]{0,40}(?:Rs\.?|₹)?\s*[:\-]?\s*(\d+(?:[.,]\d+)?)",
+    re.IGNORECASE,
 )
 # RapidOCR sometimes splits a dense small-print MRP line into two boxes --
 # "MRP" (or "MRP (Incl. of all Taxes)") alone, then the "₹45.00" value on the
 # next box/line -- the same failure mode _NET_QTY_MARKER_ONLY_RE exists to
 # handle for net quantity. A line matching this has the marker but no digits
 # of its own, so parse_mrp knows to look at the following line.
-_MRP_MARKER_ONLY_RE = re.compile(r"^\s*(?:MRP|M\.?R\.?P\.?)\b[^\d₹]*$", re.IGNORECASE)
+_MRP_MARKER_ONLY_RE = re.compile(
+    r"^\s*(?:MRP|M\.?R\.?P\.?|मूल्य|कीमत|एम\.?आर\.?पी\.?)\b[^\d₹]*$",
+    re.IGNORECASE,
+)
 _CURRENCY_MARKER_RE = re.compile(r"₹|Rs\.?")
 _PHONE_RE = re.compile(r"\+?91?[-\s]?\d{10}\b|\b1800[-\s]?\d{6}\b")
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-_MFG_DATE_LABEL_RE = re.compile(r"(?:MFD|MFG|MANUFACTURED)[^\d]{0,10}(\d{1,2})[/\-.](\d{4})", re.IGNORECASE)
+_MONTH_NAMES_TUPLE = (
+    "january", "february", "march", "april", "may", "june",
+    "july", "august", "september", "october", "november", "december",
+)
+_MONTH_ABBRS_TUPLE = (
+    "jan", "feb", "mar", "apr", "may", "jun",
+    "jul", "aug", "sep", "oct", "nov", "dec",
+)
+# All recognised month-name tokens (full names + 3-letter abbreviations),
+# deduplicated and sorted longest-first so the regex alternation is greedy-safe.
+_ALL_MONTH_TOKENS = tuple(sorted(
+    set(_MONTH_NAMES_TUPLE) | set(_MONTH_ABBRS_TUPLE),
+    key=len,
+    reverse=True,
+))
+# Map every recognised month token (lower-case) to its 1-based integer month.
+_MONTH_NAME_TO_INT: dict[str, int] = {
+    **{name: i + 1 for i, name in enumerate(_MONTH_NAMES_TUPLE)},
+    **{abbr: i + 1 for i, abbr in enumerate(_MONTH_ABBRS_TUPLE)},
+}
+_MONTH_NAME_SQUISH_RE = re.compile(
+    r"([A-Za-z])(" + "|".join(re.escape(t) for t in _ALL_MONTH_TOKENS) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def _insert_space_before_month_names(line: str) -> str:
+    """Insert a space before a month name/abbreviation that is squished directly
+    after another letter -- the OCR output 'Mfg. DateMay 2023' becomes
+    'Mfg. Date May 2023', and 'Exp. DateJan 2025' becomes 'Exp. Date Jan 2025'.
+    Only inserts when the preceding character is a letter (not a space or digit)
+    so already-well-formed text is unchanged.
+    """
+    return _MONTH_NAME_SQUISH_RE.sub(lambda m: m.group(1) + " " + m.group(2), line)
+
+
+_MFG_DATE_LABEL_RE = re.compile(
+    # Numeric month form: MFD/MFG 08/2026 or 08-2026
+    r"(?:MFD|MFG|MANUFACTURED)[^\d]{0,10}(\d{1,2})[/\-.](\d{4})"
+    r"|"
+    # Month-name/abbr form: 'Mfg. Date May 2023' or squished 'Mfg.DateMay 2023'
+    # (after _insert_space_before_month_names preprocessing normalises it)
+    r"(?:Mf[gd]\.?\s*(?:Date)?|Manufactured\s*(?:Date)?)"
+    r"\s*(" + "|".join(re.escape(t) for t in _ALL_MONTH_TOKENS) + r")\s+(\d{4})",
+    re.IGNORECASE,
+)
 
 # Real Indian labels declare the manufacturer/packer/importer behind one of
 # these markers (verified against actual RapidOCR output on
@@ -62,6 +136,12 @@ _BEST_BEFORE_MY_RE = re.compile(
     r"(?:Best\s*Before(?:\s*Use)?|Use\s*By|Expiry|Exp\.?)\D{0,10}(\d{1,2})[/\-.](\d{4})",
     re.IGNORECASE,
 )
+# Month-name/abbr form: 'Exp. Date Jan 2025' or squished 'Exp. DateJan 2025'
+_BEST_BEFORE_MONTH_NAME_RE = re.compile(
+    r"(?:Best\s*Before(?:\s*Use)?|Use\s*By|Expiry|Exp\.?)\s*(?:Date)?\s*"
+    r"(" + "|".join(re.escape(t) for t in _ALL_MONTH_TOKENS) + r")\s+(\d{4})",
+    re.IGNORECASE,
+)
 _BEST_BEFORE_ANY_RE = re.compile(r"Best\s*Before(?:\s*Use)?|Use\s*By|Expiry|Exp\.?", re.IGNORECASE)
 
 # Common/generic name: only an explicit declared label is trusted here.
@@ -81,6 +161,39 @@ _COUNTRY_OF_ORIGIN_RE = re.compile(
 )
 
 
+# Canonical unit forms accepted by registry._UNIT_DIMENSION.  OCR output
+# may return 'ML', 'mL', 'Kg', etc.; normalise before handing to the rule engine.
+_UNIT_CANONICAL: dict[str, str] = {
+    "mg": "mg",
+    "g": "g",
+    "kg": "kg",
+    "ml": "ml",
+    "ml": "ml",
+    "l": "l",
+    "L": "L",
+    "cm": "cm",
+    "mm": "mm",
+    "m": "m",
+    "n": "N",
+    "pcs": "pcs",
+    "units": "units",
+    "pair": "pair",
+    "sets": "sets",
+}
+
+
+def _normalize_unit(unit: str) -> str:
+    """Return the canonical unit string for `unit`, case-insensitively.
+
+    The litre abbreviation is special: lowercase 'l' is kept as 'l' and
+    uppercase 'L' is kept as 'L' since both are in _UNIT_DIMENSION. All
+    other units collapse to lowercase (e.g. 'ML' → 'ml', 'KG' → 'kg').
+    """
+    if unit in ("l", "L"):
+        return unit  # preserve case for litre
+    return _UNIT_CANONICAL.get(unit.lower(), unit.lower())
+
+
 def parse_net_quantity(lines: list[str]) -> dict | None:
     # Prefer a line with an explicit NET WT/QTY marker over an unmarked
     # number, which may belong to an ingredient or a dimension elsewhere
@@ -89,7 +202,7 @@ def parse_net_quantity(lines: list[str]) -> dict | None:
         m = _NET_QTY_MARKER_RE.search(line)
         if m:
             value, unit = m.groups()
-            return {"value": float(value), "unit": unit}
+            return {"value": float(value), "unit": _normalize_unit(unit)}
     # OCR sometimes splits the marker and the value into adjacent boxes
     # (e.g. "NET WT." / "120g" as two separate lines).
     for i, line in enumerate(lines):
@@ -97,12 +210,12 @@ def parse_net_quantity(lines: list[str]) -> dict | None:
             m = _NET_QTY_RE.search(lines[i + 1])
             if m:
                 value, unit = m.groups()
-                return {"value": float(value), "unit": unit}
+                return {"value": float(value), "unit": _normalize_unit(unit)}
     for line in lines:
         m = _NET_QTY_RE.search(line)
         if m:
             value, unit = m.groups()
-            return {"value": float(value), "unit": unit}
+            return {"value": float(value), "unit": _normalize_unit(unit)}
     return None
 
 
@@ -211,30 +324,50 @@ def parse_country_of_origin(lines: list[str]) -> str | None:
 
 
 def parse_mfg_date(lines: list[str]) -> str | None:
-    for line in lines:
+    for raw_line in lines:
+        # Normalise squished OCR text like 'Mfg. DateMay 2023' before matching.
+        line = _insert_space_before_month_names(raw_line)
         m = _MFG_DATE_LABEL_RE.search(line)
         if m:
-            month, year = m.groups()
-            month_int = int(month)
-            if 1 <= month_int <= 12:
-                return f"{year}-{month_int:02d}-01"
+            month_num, year_num, month_name, year_name = m.groups()
+            if month_num is not None:
+                # Arm 1: numeric form  e.g. MFG 08/2026
+                month_int = int(month_num)
+                if 1 <= month_int <= 12:
+                    return f"{year_num}-{month_int:02d}-01"
+            elif month_name is not None:
+                # Arm 2: month-name/abbr form  e.g. Mfg. Date May 2023 or Mfg. Date Jan 2023
+                month_int = _MONTH_NAME_TO_INT.get(month_name.lower())
+                if month_int is not None:
+                    return f"{year_name}-{month_int:02d}-01"
     return None
 
 
 def parse_best_before(lines: list[str]) -> str | None:
-    for line in lines:
+    for raw_line in lines:
+        line = _insert_space_before_month_names(raw_line)
         m = _BEST_BEFORE_DMY_RE.search(line)
         if m:
             day, month, year = m.groups()
             day_int, month_int = int(day), int(month)
             if 1 <= month_int <= 12 and 1 <= day_int <= 31:
                 return f"{year}-{month_int:02d}-{day_int:02d}"
-    for line in lines:
+    for raw_line in lines:
+        line = _insert_space_before_month_names(raw_line)
         m = _BEST_BEFORE_MY_RE.search(line)
         if m:
             month, year = m.groups()
             month_int = int(month)
             if 1 <= month_int <= 12:
+                return f"{year}-{month_int:02d}-01"
+    # Month-name/abbr form: 'Exp. Date Jan 2025' or squished 'Exp. DateJan 2025'
+    for raw_line in lines:
+        line = _insert_space_before_month_names(raw_line)
+        m = _BEST_BEFORE_MONTH_NAME_RE.search(line)
+        if m:
+            month_name, year = m.groups()
+            month_int = _MONTH_NAME_TO_INT.get(month_name.lower())
+            if month_int is not None:
                 return f"{year}-{month_int:02d}-01"
     return None
 
@@ -251,7 +384,17 @@ def parse_common_or_generic_name(lines: list[str]) -> str | None:
 
 def structure_fields(lines: list[str]) -> dict:
     """Best-effort structured subset of ExtractionEnvelope fields parsed from
-    raw OCR text lines. Only includes keys it found something for."""
+    raw OCR text lines. Only includes keys it found something for.
+
+    Devanagari digits are normalised to ASCII before any regex matching so that
+    Hindi-script numerals on real Indian labels (e.g. ₹३०.०० for MRP) are
+    handled by the existing English-path patterns.  All other Devanagari
+    characters are left unchanged.
+    """
+    # Normalize Devanagari digits across all lines before any parsing.
+    # This is the ONLY global preprocessing step; per CLAUDE.md invariant 11,
+    # no other global image or text preprocessing is applied.
+    lines = [_normalize_devanagari(line) for line in lines]
     out: dict = {}
     if (nq := parse_net_quantity(lines)) is not None:
         out["net_quantity"] = nq

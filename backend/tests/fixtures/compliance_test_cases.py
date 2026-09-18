@@ -389,4 +389,72 @@ TEST_CASES = [
         },
         "expected_verdict": "NON_COMPLIANT",
     },
+    {
+        "test_case_id": "TC-CHAND-01",
+        "scenario_name": "Chandanam Shampoo -- correctly parsed (only LM-C06 should fail)",
+        "input_data": {
+            "scan_source": "package_image",
+            "commodity": {"category": "cosmetic", "subtype": None, "is_imported": False, "is_exempt": False},
+            # net_quantity parsed from '500ml' (no space) -- after unit normalisation this is 'ml'
+            "net_quantity": {"value": 500.0, "unit": "ml"},
+            # MRP with the label's actual typo 'inclusive of all texes' -- fuzzy match must pass LM-F04
+            "mrp": {
+                "value": 144.0,
+                "currency_marker": "Rs.",
+                "raw_text": "MRP: Rs. 144/- (inclusive of all texes)",
+            },
+            # mfg_date parsed from 'Mfg. DateMay 2023' after squish normalisation
+            "mfg_date": "2023-05-01",
+            # expiry/best-before parsed from 'Exp. DateJan 2025' after squish normalisation
+            "best_before_date": "2025-01-01",
+            "manufacturer_or_packer_or_importer": {
+                "name": "Rajshri Dailycare Industries",
+                "address": "518, Ward 2, Shikshak Colony, Agro Industrial Area, Chhindwara 480001 (M.P.) INDIA",
+            },
+            "common_or_generic_name": "Shampoo",
+            "brand_name": "Chandanam",
+            "country_of_origin": "India",
+            # consumer_care is deliberately absent -- this is the ONLY genuine violation (LM-C06)
+        },
+        "expected_verdict": "NON_COMPLIANT",
+        "_fixture_notes": (
+            "Real-world Chandanam Natural Extracts Shampoo label. "
+            "consumer_care is absent (LM-C06 FAIL -- genuine violation). "
+            "mrp.raw_text contains the typo 'texes' instead of 'taxes'; after "
+            "fuzzy matching, LM-F04 must PASS. mfg_date/best_before_date were "
+            "reconstructed from squished OCR ('DateMay 2023', 'DateJan 2025') "
+            "by _insert_space_before_month_names; LM-F05 and LM-T02 must PASS."
+        ),
+    },
+    {
+        "test_case_id": "TC-CHAND-02",
+        "scenario_name": "Chandanam Shampoo -- raw OCR typos, fuzzy MRP check",
+        "input_data": {
+            "scan_source": "package_image",
+            "commodity": {"category": "cosmetic", "subtype": None, "is_imported": False, "is_exempt": False},
+            "net_quantity": {"value": 500.0, "unit": "ml"},
+            # MRP raw_text has the actual on-label typo to exercise LM-F04 fuzzy matching
+            "mrp": {
+                "value": 144.0,
+                "currency_marker": "Rs.",
+                "raw_text": "MRP: Rs. 144/- (inclusive of all texes)",
+            },
+            "mfg_date": "2023-05-01",
+            "best_before_date": "2025-01-01",
+            "manufacturer_or_packer_or_importer": {
+                "name": "Rajshri Dailycare Industries",
+                "address": "518, Ward 2, Shikshak Colony, Agro Industrial Area, Chhindwara 480001 (M.P.) INDIA",
+            },
+            "common_or_generic_name": "Shampoo",
+            "brand_name": "Chandanam",
+            "country_of_origin": "India",
+        },
+        "expected_verdict": "NON_COMPLIANT",
+        "_fixture_notes": (
+            "Identical to TC-CHAND-01 but focuses the test on the fuzzy-phrase "
+            "matching path in LM-F04 (mrp.raw_text contains 'texes'). "
+            "consumer_care is absent so the verdict is NON_COMPLIANT, but "
+            "LM-F04 itself must be PASS, not FAIL."
+        ),
+    },
 ]

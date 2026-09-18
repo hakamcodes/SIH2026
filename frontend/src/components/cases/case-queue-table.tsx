@@ -70,45 +70,80 @@ export function CaseQueueTable() {
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          {QUEUE_COLUMNS.map((col) => (
-            <TableHead key={col}>{col}</TableHead>
-          ))}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+    <>
+      {/* ── Mobile card list (< md) ─────────────────────────────────── */}
+      <ul className="divide-y divide-border md:hidden">
         {data.cases.map((row, index) => (
-          <TableRow
+          <li
             key={row.case_id}
+            className="stagger-item"
             style={{ "--stagger": index } as React.CSSProperties}
-            className="stagger-item cursor-pointer border-l-2 border-l-transparent transition-[background-color,border-color,box-shadow] duration-[var(--dur-fast)] hover:border-l-primary hover:bg-surface-subtle hover:shadow-sm"
-            tabIndex={0}
           >
-            <TableCell className="p-0">
-              <Link
-                href={`/cases/${row.case_id}`}
-                className="block px-3 py-1.5 font-mono text-xs text-foreground focus-visible:outline-none"
-              >
-                {row.case_id}
-              </Link>
-            </TableCell>
-            <TableCell>
-              <CaseStatusBadge status={row.status} />
-            </TableCell>
-            <TableCell>
-              <VerdictBadge verdict={row.scan_overall_verdict} size="sm" />
-            </TableCell>
-            <TableCell className="text-sm text-fg-muted">
-              {row.assigned_inspector_id ?? "—"}
-            </TableCell>
-            <TableCell className="font-mono text-xs text-fg-muted">
-              {formatTimestamp(row.created_at)}
-            </TableCell>
-          </TableRow>
+            <Link
+              href={`/cases/${row.case_id}`}
+              className="block px-4 py-3 transition-colors duration-[var(--dur-fast)] hover:bg-surface-subtle"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-mono text-xs text-foreground">{row.case_id}</span>
+                <VerdictBadge verdict={row.scan_overall_verdict} size="sm" />
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <CaseStatusBadge status={row.status} />
+                {row.assigned_inspector_id && (
+                  <span className="text-xs text-fg-muted">{row.assigned_inspector_id}</span>
+                )}
+                <span className="ml-auto font-mono text-2xs text-fg-subtle">
+                  {formatTimestamp(row.created_at)}
+                </span>
+              </div>
+            </Link>
+          </li>
         ))}
-      </TableBody>
-    </Table>
+      </ul>
+
+      {/* ── Desktop table (≥ md) ─────────────────────────────────────── */}
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {QUEUE_COLUMNS.map((col) => (
+                <TableHead key={col}>{col}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.cases.map((row, index) => (
+              <TableRow
+                key={row.case_id}
+                style={{ "--stagger": index } as React.CSSProperties}
+                className="stagger-item cursor-pointer border-l-2 border-l-transparent transition-[background-color,border-color,box-shadow] duration-[var(--dur-fast)] hover:border-l-primary hover:bg-surface-subtle hover:shadow-sm"
+                tabIndex={0}
+              >
+                <TableCell className="p-0">
+                  <Link
+                    href={`/cases/${row.case_id}`}
+                    className="block px-3 py-1.5 font-mono text-xs text-foreground focus-visible:outline-none"
+                  >
+                    {row.case_id}
+                  </Link>
+                </TableCell>
+                <TableCell>
+                  <CaseStatusBadge status={row.status} />
+                </TableCell>
+                <TableCell>
+                  <VerdictBadge verdict={row.scan_overall_verdict} size="sm" />
+                </TableCell>
+                <TableCell className="text-sm text-fg-muted">
+                  {row.assigned_inspector_id ?? "—"}
+                </TableCell>
+                <TableCell className="font-mono text-xs text-fg-muted">
+                  {formatTimestamp(row.created_at)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   );
 }

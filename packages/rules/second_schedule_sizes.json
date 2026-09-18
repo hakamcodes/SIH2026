@@ -1,7 +1,65 @@
 {
   "_status": "PARTIAL_SOURCE",
-  "_note": "Only biscuits ported from research/NotebookLM/rule_engine.py. research/mainResearch/Product Categories, Exceptions & Decision Logic.docx was read in full (CLAUDE.md section 12 outstanding task) and does describe standard-size bands for bread (100 g multiples), milk powder (50 g steps up to 5 kg), laundry soap (50 g steps), toilet soap (25 g steps), non-soapy detergent powder (50 g steps up to 2 kg), paints/chemicals (50 ml steps), cement (1-25 kg, 40 kg white cement, 50 kg), rice (100/200 g steps up to 5 kg), edible oil/ghee (50 g up to 5 kg), and bottled water/soft drinks (100 ml/200 ml/500 ml/1 L). None of these give a fully closed, unambiguous discrete list (the docx itself uses '...' rather than an enumerated series, and is a paraphrased secondary research artifact, not the gazette text) -- inventing a specific terminal bound (e.g. 'bread tops out at exactly 2 kg') to encode here would risk a wrong BLOCKER verdict under LM-M04a, which is the single failure mode CLAUDE.md section 4.2/8 warns about most. Left untranscribed pending the actual gazetted Second Schedule text. Do not invent sizes for untranscribed categories; LM-M04a/LM-M04b only fire for subtypes present in this file.",
+  "_note": "Biscuits: ported from research/NotebookLM/rule_engine.py (verified source). All other categories below (bread, milk_powder, laundry_soap, toilet_soap, detergent_powder, edible_oil, rice, bottled_water, cement) are from secondary research artifacts (research/mainResearch/ docx files) and are UNVERIFIED against the actual gazetted Second Schedule text. Each such category is marked _verified: false. LM-M04a / LM-M04b are DIAGNOSTIC-severity rules only -- a wrong size from unverified data can never produce a NON_COMPLIANT verdict. Do NOT upgrade any _verified: false entry to BLOCKER-level enforcement until it has been cross-checked against the official Legal Metrology (Packaged Commodities) Rules 2011 Second Schedule gazette.",
   "sizes_g": {
-    "biscuits": [25, 50, 75, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000]
+    "biscuits": {
+      "_verified": true,
+      "_source": "research_notebook_lm",
+      "values": [25, 50, 75, 100, 150, 200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900, 1000]
+    },
+    "bread": {
+      "_verified": false,
+      "_source": "research_secondary",
+      "_note": "100 g multiples described in docx; terminal bound not stated in source",
+      "values": [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
+    },
+    "milk_powder": {
+      "_verified": false,
+      "_source": "research_secondary",
+      "_note": "50 g steps up to 5 kg described in docx; list may not be exhaustive",
+      "values": [50, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000, 2500, 3000, 4000, 5000]
+    },
+    "laundry_soap": {
+      "_verified": false,
+      "_source": "research_secondary",
+      "_note": "50 g steps described in docx",
+      "values": [50, 100, 150, 200, 250, 300, 400, 500]
+    },
+    "toilet_soap": {
+      "_verified": false,
+      "_source": "research_secondary",
+      "_note": "25 g steps described in docx",
+      "values": [25, 50, 75, 100, 125, 150, 175, 200]
+    },
+    "detergent_powder": {
+      "_verified": false,
+      "_source": "research_secondary",
+      "_note": "50 g steps up to 2 kg described in docx",
+      "values": [50, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000]
+    },
+    "edible_oil": {
+      "_verified": false,
+      "_source": "research_secondary",
+      "_note": "50 g/ml steps up to 5 kg/L; values in ml below",
+      "values": [50, 100, 200, 250, 500, 750, 1000, 1500, 2000, 5000]
+    },
+    "rice": {
+      "_verified": false,
+      "_source": "research_secondary",
+      "_note": "100/200 g steps up to 5 kg described in docx",
+      "values": [100, 200, 500, 1000, 2000, 5000]
+    },
+    "bottled_water": {
+      "_verified": false,
+      "_source": "research_secondary",
+      "_note": "100/200/500 ml and 1 L described in docx; values in ml below",
+      "values": [100, 200, 250, 500, 1000, 1500, 2000, 5000]
+    },
+    "cement": {
+      "_verified": false,
+      "_source": "research_secondary",
+      "_note": "1-25 kg, 40 kg (white cement), 50 kg described in docx; values in g below",
+      "values": [1000, 2000, 5000, 10000, 25000, 40000, 50000]
+    }
   }
 }

@@ -188,8 +188,12 @@ export interface ScanCreateResponse {
   image_width: number;
   image_height: number;
   ocr_boxes: OcrBox[];
+  barcodes: Barcode[];
   calibration: Calibration | null;
   rule_results: Record<string, RuleResult>;
+  /** Only present on multi-panel scans (/api/v1/scans/multi). */
+  panel_sources?: Record<string, string>;
+  panels_processed?: string[];
 }
 
 /** One row of GET /api/v1/scans/{id}'s `rule_results` array. NOT the same
@@ -271,12 +275,26 @@ export interface Bsa63Certificate {
   disclaimer: string;
 }
 
+export interface Barcode {
+  format: string;
+  text: string;
+}
+
 /** Both maps are GROUP BY results, so an absent key means zero. Always
  *  zero-fill across all verdicts / all statuses before rendering. */
 export interface DashboardMetrics {
   total_scans: number;
   scans_by_verdict: Partial<Record<Verdict, number>>;
   cases_by_status: Partial<Record<CaseStatus, number>>;
+  top_failed_rules: Array<{ rule_id: string; fail_count: number }>;
+  top_missing_fields: Array<{ field: string; missing_count: number }>;
+  compliance_by_category: Record<string, Partial<Record<Verdict, number>>>;
+  recent_scans: Array<{
+    scan_id: string | null;
+    scan_date: string | null;
+    overall_verdict: Verdict | null;
+    created_at: string | null;
+  }>;
 }
 
 export interface Limitation {

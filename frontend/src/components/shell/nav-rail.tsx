@@ -8,13 +8,45 @@ import { NAV_GROUP_LABELS, NAV_ITEMS, isNavItemActive, type NavItem } from "@/li
 import { cn } from "@/lib/utils";
 
 /**
- * Hand-written rather than adapted from a catalogue sidebar: every sidebar in
- * the 21st.dev results shipped a team switcher, collapsible multi-tier groups
- * and entrance animation this product has no use for. Five destinations need
- * five links.
+ * Desktop: left sidebar rail (hidden below lg breakpoint).
+ * Mobile: bottom tab bar (fixed, shown below lg breakpoint only).
+ * Both use the same NavItem data; the layout differs.
  */
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavLink({ item, active, compact }: { item: NavItem; active: boolean; compact?: boolean }) {
   const Icon = item.icon;
+  if (compact) {
+    // Mobile bottom tab bar: icon + short label, no active bar
+    return (
+      <Link
+        href={item.href}
+        aria-current={active ? "page" : undefined}
+        title={item.description}
+        className={cn(
+          "flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors duration-[var(--dur-fast)]",
+          active
+            ? "text-primary"
+            : "text-fg-muted hover:text-foreground",
+        )}
+      >
+        <span className="relative flex items-center justify-center">
+          <Icon
+            className={cn("size-5 shrink-0 transition-transform duration-[var(--dur)]", active ? "text-primary scale-110" : "text-fg-muted")}
+            aria-hidden="true"
+          />
+          {/* Active indicator dot under icon */}
+          {active && (
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-1 left-1/2 size-1 -translate-x-1/2 rounded-full bg-primary"
+            />
+          )}
+        </span>
+        <span className="mt-1 truncate max-w-[56px] text-center leading-tight">{item.label}</span>
+      </Link>
+    );
+  }
+
+  // Desktop sidebar link
   return (
     <Link
       href={item.href}
@@ -29,7 +61,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
     >
       <span
         className={cn(
-          "absolute inset-y-1.5 left-0 w-[3px] bg-accent-cta transition-transform duration-[var(--dur)]",
+          "absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-accent-cta transition-transform duration-[var(--dur)]",
           active ? "scale-y-100" : "scale-y-0",
         )}
         aria-hidden="true"
@@ -62,7 +94,7 @@ export function NavRail({ className }: { className?: string }) {
     >
       <Link
         href="/"
-        className="flex h-[var(--topbar-h)] items-center gap-2 border-b border-sidebar-border px-3"
+        className="flex h-[var(--topbar-h)] items-center gap-2 border-b border-sidebar-border px-3 transition-opacity duration-[var(--dur)] hover:opacity-80"
       >
         <Scale className="size-4 shrink-0 text-sidebar-primary" aria-hidden="true" />
         <span className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">
@@ -93,6 +125,30 @@ export function NavRail({ className }: { className?: string }) {
         <p className="label-caps text-sidebar-foreground/45">Problem statement</p>
         <p className="mt-0.5 font-mono text-xs text-sidebar-foreground/70">SIH PS 26034</p>
       </div>
+    </nav>
+  );
+}
+
+/** Mobile bottom tab bar — shown on small screens, hidden on lg+.
+ *  Frosted glass effect with safe-area-inset-bottom support. */
+export function BottomTabBar() {
+  const pathname = usePathname();
+
+  return (
+    <nav
+      aria-label="Main navigation"
+      className="fixed bottom-0 left-0 right-0 z-50 flex border-t border-border bg-surface/90 backdrop-blur-md lg:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      data-no-print
+    >
+      {NAV_ITEMS.map((item) => (
+        <NavLink
+          key={item.href}
+          item={item}
+          active={isNavItemActive(pathname, item.href)}
+          compact
+        />
+      ))}
     </nav>
   );
 }

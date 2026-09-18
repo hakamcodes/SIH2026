@@ -612,6 +612,117 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   PRINT STYLES — strip chrome, force clean document output.
+   The full-bleed nav/sidebar/topbar are decorative UI; for printed
+   violation reports only the content matters.
+   --------------------------------------------------------------------------- */
+@media print {
+  /* Hide all navigation and shell chrome */
+  nav,
+  header,
+  [data-no-print],
+  .lg\:flex /* sidebar rail */ {
+    display: none !important;
+  }
+
+  /* Remove padding the shell adds for the nav rail */
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+  }
+
+  /* Avoid mid-sentence page breaks inside panels */
+  section {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+  }
+
+  /* Tables: don't break header rows across pages */
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+
+  a[href]::after {
+    content: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   INTERACTIVE POLISH — button press feedback, smooth scroll
+   --------------------------------------------------------------------------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Tactile press feedback: buttons slightly shrink on active */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    transition-property: color, background-color, border-color, box-shadow,
+      opacity, transform;
+    transition-duration: var(--dur);
+    transition-timing-function: var(--ease);
+  }
+
+  button:not(:disabled):active,
+  [role="button"]:not(:disabled):active {
+    transform: scale(0.97);
+  }
+}
+
+/* Smooth page-content entrance — applied to the main content container
+   on route change via key prop in AppShell. */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer utilities {
+  .animate-page-enter {
+    animation: page-enter 220ms var(--ease) both;
+  }
+}
+
+/* Pulse ring — used by VerdictBanner icon */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@layer utilities {
+  .animate-pulse-ring {
+    animation: pulse-ring 2s var(--ease) infinite;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

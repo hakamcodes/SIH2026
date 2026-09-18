@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Menu, Scale, UserRound } from "lucide-react";
+import { LogOut, Menu, Printer, Scale, UserRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -81,7 +81,10 @@ export function TopBar() {
   const { inspector, signOut } = useInspector();
 
   return (
-    <header className="shadow-sm relative z-10 flex h-[var(--topbar-h)] shrink-0 items-center gap-2 border-b border-border bg-surface/80 px-2 backdrop-blur-md sm:px-4">
+    <header
+      className="shadow-sm relative z-10 flex h-[var(--topbar-h)] shrink-0 items-center gap-2 border-b border-border bg-surface/80 px-2 backdrop-blur-md sm:px-4"
+      data-no-print
+    >
       <MobileNav />
 
       <Link
@@ -92,11 +95,23 @@ export function TopBar() {
         Legal Metrology
       </Link>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-2 sm:gap-3">
         <div className="hidden items-baseline gap-1.5 sm:flex">
           <span className="label-caps">Ruleset</span>
           <span className="font-mono text-xs text-fg-muted">{RULESET_VERSION}</span>
         </div>
+
+        {/* Print current page */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 text-fg-muted hover:text-foreground"
+          aria-label="Print this page"
+          onClick={() => window.print()}
+          title="Print / Save as PDF"
+        >
+          <Printer className="size-3.5" aria-hidden="true" />
+        </Button>
 
         {inspector ? (
           <DropdownMenu>

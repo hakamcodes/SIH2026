@@ -16,6 +16,7 @@ Ports and fixes research/NotebookLM/rule_engine.py defects (CLAUDE.md section 5)
 from __future__ import annotations
 
 import datetime
+import difflib
 import json
 import re
 from pathlib import Path
@@ -154,19 +155,56 @@ def matches_regex(text: Any, pattern: str) -> bool:
     return re.match(pattern, text) is not None
 
 
+_FUZZY_PHRASE_THRESHOLD = 0.85
+
+
 def contains_phrase(text: Any, phrase: str) -> bool:
+    """Return True if `phrase` is a substring of `text` (case-insensitive).
+
+    Falls back to a sliding-window fuzzy match (difflib.SequenceMatcher,
+    threshold=0.85) so that common real-world OCR/print typos on physical
+    packaging -- e.g. "inclusive of all texes" vs "inclusive of all taxes" --
+    do not cause a false FAIL.
+    """
     if not isinstance(text, str):
         return False
-    return phrase.lower() in text.lower()
+    text_lower = text.lower()
+    phrase_lower = phrase.lower()
+    if phrase_lower in text_lower:
+        return True
+    # Sliding-window fuzzy match: compare phrase against every same-length
+    # window in the text; accept on the first window that meets the threshold.
+    plen = len(phrase_lower)
+    if plen == 0:
+        return True
+    for start in range(len(text_lower) - plen + 1):
+        window = text_lower[start : start + plen]
+        ratio = difflib.SequenceMatcher(None, phrase_lower, window, autojunk=False).ratio()
+        if ratio >= _FUZZY_PHRASE_THRESHOLD:
+            return True
+    return False
 
 
 def get_standard_sizes(subtype: str) -> list:
-    return _SECOND_SCHEDULE.get("sizes_g", {}).get(subtype, [])
+    """Return the list of standard sizes (in grams or ml) for a given commodity
+    subtype, or [] if the subtype is not in the Second Schedule data.
+
+    Handles both the legacy flat-list format (biscuits pre-expansion) and the
+    current nested-dict format {_verified, _source, values: [...]}.
+    """
+    entry = _SECOND_SCHEDULE.get("sizes_g", {}).get(subtype)
+    if entry is None:
+        return []
+    if isinstance(entry, list):
+        return entry  # legacy flat-list format (should not appear post-expansion)
+    if isinstance(entry, dict):
+        return entry.get("values", [])
+    return []
 
 
 def get_second_schedule_categories() -> list[str]:
-    """The commodity subtypes for which second_schedule_sizes.json actually
-    encodes a standard-sizes list -- used by lmd.engine.engine to build
+    """The commodity subtypes for which second_schedule_sizes.json encodes a
+    standard-sizes list -- used by lmd.engine.engine to build
     system.second_schedule_list so that adding a category to the JSON
     activates LM-M04a/LM-M04b for it with no code change."""
     return list(_SECOND_SCHEDULE.get("sizes_g", {}).keys())
