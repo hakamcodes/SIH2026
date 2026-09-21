@@ -151,13 +151,12 @@ async def create_scan(
 
     t0 = time.perf_counter()
     # Pipeline A (CPU-bound OCR) and pipeline B (network-bound vision call,
-    # a no-op when no API key or on a cache hit) are independent -- running
-    # them concurrently in worker threads keeps pipeline B's latency off the
-    # critical path and stops either from blocking the event loop.
-    pipeline_a_result, vision_fields = await asyncio.gather(
-        asyncio.to_thread(run_pipeline_a, cv_image),
-        asyncio.to_thread(_maybe_run_pipeline_b, image_bytes),
-    )
+    # a no-op when no API key or on a cache hit) are run sequentially, not
+    # concurrently -- on the 512MB Render free tier, overlapping both peaks
+    # at once was pushing RSS over the instance cap. Sequential costs some
+    # latency but keeps only one pipeline's peak memory live at a time.
+    pipeline_a_result = await asyncio.to_thread(run_pipeline_a, cv_image)
+    vision_fields = await asyncio.to_thread(_maybe_run_pipeline_b, image_bytes)
     image_bytes_for_hash = image_bytes  # keep a reference for sha256 below
     image_bytes = None  # release before the expensive overlay/storage steps
     logger.info("scan %s: pipelines A+B took %.2fs", scan_source, time.perf_counter() - t0)
