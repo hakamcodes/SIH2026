@@ -75,12 +75,19 @@ class PipelineAResult:
 @lru_cache(maxsize=1)
 def _get_engine() -> RapidOCR:
     # Caps onnxruntime's intra/inter-op thread pools, shared across the det/
-    # cls/rec sessions via EngineConfig.onnxruntime. Left at the library
+    # rec sessions via EngineConfig.onnxruntime. Left at the library
     # default (-1 = one thread per CPU core), a multi-core Render box lets
     # each session spin up its own per-core native thread pool, which is
     # what pushed a single-request scan over the 512MB instance cap.
+    #
+    # Global.use_cls=False skips loading the angle-classifier ONNX session
+    # entirely -- package photos in this app's flow are upright (camera
+    # capture or a straight upload), not rotated text, so the classifier
+    # buys nothing here. Dropping the third session is the single biggest
+    # lever on the 512MB Render free-tier cap.
     return RapidOCR(
         params={
+            "Global.use_cls": False,
             "EngineConfig.onnxruntime.intra_op_num_threads": 1,
             "EngineConfig.onnxruntime.inter_op_num_threads": 1,
         }
@@ -173,7 +180,10 @@ def run_pipeline_a(image: np.ndarray) -> PipelineAResult:
         # not None), not per-call flags -- a prior _rerun_ocr_on_crop() call
         # (which deliberately sets use_det=False) would otherwise leak into
         # this full detect+recognize call. Always pass all three explicitly.
-        raw_result = engine(masked, use_det=True, use_cls=True, use_rec=True)
+        # use_cls=False here matches Global.use_cls=False in _get_engine --
+        # the cls session is never loaded, so requesting it per-call would
+        # error rather than no-op.
+        raw_result = engine(masked, use_det=True, use_cls=False, use_rec=True)
     t_ocr = time.perf_counter() - t0
 
     fields: list[TextField] = []
