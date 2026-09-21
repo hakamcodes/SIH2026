@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -99,6 +100,15 @@ class AnthropicVisionClient:
         return "".join(block.text for block in response.content if block.type == "text")
 
 
+@lru_cache(maxsize=1)
+def _get_default_client() -> AnthropicVisionClient:
+    # A fresh anthropic.Anthropic() opens its own httpx connection pool --
+    # on a multi-panel scan that ran one per panel, which added up on the
+    # 512MB Render free tier. Cache the process-global default; a caller
+    # supplying its own `client=` (tests) is unaffected.
+    return AnthropicVisionClient()
+
+
 def _cache_path(image_sha256: str) -> Path:
     return _CACHE_DIR / f"{image_sha256}.json"
 
@@ -139,12 +149,13 @@ def extract_with_vision(
 
     model = model or DEFAULT_MODEL
     if client is None:
-        client = AnthropicVisionClient()
+        client = _get_default_client()
 
     import base64
 
     image_b64 = base64.b64encode(image_bytes).decode("ascii")
     raw_text = client.create_message(model=model, image_b64=image_b64, media_type=media_type, prompt=_PROMPT)
+    image_b64 = None
     fields = _parse_response_text(raw_text)
 
     if use_cache:

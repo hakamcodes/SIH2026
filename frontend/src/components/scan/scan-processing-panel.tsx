@@ -1,15 +1,9 @@
 import { CheckCircle2, Cpu, Loader2, ScanLine, UploadCloud } from "lucide-react";
 
+import type { ScanStageEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export type ScanProcessingPhase = "uploading" | "processing" | "finalizing";
-
-const SERVER_STAGE_CAPTIONS = [
-  "Running RapidOCR text extraction…",
-  "Structuring extracted fields (net quantity, MRP, dates, manufacturer)…",
-  "Cross-checking numeric fields against the vision model, where configured…",
-  "Evaluating the loaded ruleset against extracted fields…",
-] as const;
 
 interface StepDef {
   key: string;
@@ -33,30 +27,32 @@ function stepState(step: string, phase: ScanProcessingPhase): "done" | "active" 
 }
 
 /**
- * A single POST /api/v1/scans call runs pipeline A, optionally pipeline B,
- * and the rule engine server-side in one request -- there is no streaming
- * endpoint, so the individual stages inside "server-side processing" cannot
- * be observed from the browser. Rather than invent a fake percentage for
- * that phase, this shows a real upload percentage (measured via
- * XMLHttpRequest.upload.onprogress), then an honestly-indeterminate step
- * with an elapsed timer and rotating captions describing the pipeline's
- * known stages -- captions describe what the pipeline generally does, not a
- * confirmed live position in it.
+ * A single POST /api/v1/scans (or /scans/multi) call streams NDJSON stage
+ * events while the pipeline runs (backend/lmd/api/progress.py) -- `stages`
+ * below is the accumulated event log for the in-flight scan, and `index`/
+ * `total` on the latest event give a genuinely determinate progress bar:
+ * the backend always emits the same fixed set of stage events regardless of
+ * which branch a scan takes, so total is exact, not a guessed percentage.
  */
 export function ScanProcessingPanel({
   phase,
   uploadPercent,
   elapsedSeconds,
-  captionIndex,
+  stages,
 }: {
   phase: ScanProcessingPhase;
   uploadPercent: number;
   elapsedSeconds: number;
-  captionIndex: number;
+  stages: ScanStageEvent[];
 }) {
   const minutes = Math.floor(elapsedSeconds / 60);
   const seconds = elapsedSeconds % 60;
   const elapsedLabel = `${minutes}:${String(seconds).padStart(2, "0")}`;
+
+  const latest = stages[stages.length - 1];
+  const percent = latest ? Math.round((latest.index / latest.total) * 100) : 0;
+  // Multi-panel scans tag events with a panel; single-image scans never do.
+  const isMultiPanel = stages.some((s) => s.panel !== undefined);
 
   return (
     <div
@@ -139,17 +135,43 @@ export function ScanProcessingPanel({
                 {step.key === "processing" && state === "active" && (
                   <div className="mt-1.5 flex flex-col gap-1.5">
                     <div className="h-1 w-full max-w-xs overflow-hidden rounded-full bg-border">
-                      <div className="h-full w-1/3 rounded-full bg-gradient-primary animate-indeterminate" />
+                      <div
+                        className="h-full rounded-full bg-gradient-primary transition-[width] duration-300"
+                        style={{ width: `${percent}%` }}
+                      />
                     </div>
-                    <p className="text-xs text-fg-muted" aria-live="off">
-                      {SERVER_STAGE_CAPTIONS[captionIndex % SERVER_STAGE_CAPTIONS.length]}
+                    <p className="text-xs font-medium text-foreground" aria-live="off">
+                      {latest ? latest.label : "Starting pipeline…"}
+                      {latest?.detail ? ` — ${latest.detail}` : ""}
                     </p>
-                    <p className="font-mono text-2xs text-fg-subtle">
-                      Elapsed{" "}
-                      <span className="tabular-nums">{elapsedLabel}</span>
-                      {" "}— exact stage isn&apos;t reported by the backend; this can take up
-                      to a minute on the first scan while the OCR model loads.
-                    </p>
+                    {latest && (
+                      <p className="font-mono text-2xs text-fg-subtle">
+                        Step {latest.index} of {latest.total}
+                        {isMultiPanel && latest.panel ? ` · panel: ${latest.panel}` : ""}
+                        {" · elapsed "}
+                        <span className="tabular-nums">{elapsedLabel}</span>
+                      </p>
+                    )}
+                    {stages.length > 1 && (
+                      <ol className="mt-1 flex max-h-32 flex-col gap-0.5 overflow-y-auto border-t border-border/60 pt-1.5">
+                        {stages
+                          .slice(0, -1)
+                          .slice(-6)
+                          .map((event, i) => (
+                            <li
+                              key={`${event.stage}-${event.index}-${i}`}
+                              className="flex items-center gap-1.5 font-mono text-2xs text-fg-subtle"
+                            >
+                              <CheckCircle2 className="size-2.5 shrink-0 text-[var(--verdict-compliant-fg)]" aria-hidden="true" />
+                              <span className="truncate">
+                                {event.panel ? `[${event.panel}] ` : ""}
+                                {event.label}
+                                {event.detail ? ` — ${event.detail}` : ""}
+                              </span>
+                            </li>
+                          ))}
+                      </ol>
+                    )}
                   </div>
                 )}
 

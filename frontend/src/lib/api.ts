@@ -15,6 +15,7 @@ import type {
   RulesReloadResponse,
   ScanCreateResponse,
   ScanDetail,
+  ScanStreamEvent,
 } from "./types";
 
 /**
@@ -141,24 +142,42 @@ export async function createScan(
   });
 }
 
-/**
- * Same request as createScan, but over XMLHttpRequest instead of fetch so the
- * real upload progress (xhr.upload.onprogress, driven by bytes actually sent
- * over the wire) can be reported. fetch has no equivalent request-body
- * progress event. Used to show a genuine upload percentage before the
- * (unmeasurable) server-side OCR/rule-evaluation phase begins.
- */
-export async function createScanWithProgress(
-  params: CreateScanParams,
-  options: { onUploadProgress?: (percent: number) => void; signal?: AbortSignal } = {},
-): Promise<ScanCreateResponse> {
-  const image = await resizeForUpload(params.image);
-  const formData = buildScanFormData({ ...params, image });
+export interface ScanProgressOptions {
+  onUploadProgress?: (percent: number) => void;
+  /** Called for every stage/panel_done event as the backend's pipeline runs
+   *  (backend/lmd/api/progress.py NDJSON stream). Never called for the
+   *  terminal result/error events -- those resolve/reject the promise. */
+  onStage?: (event: ScanStreamEvent) => void;
+  signal?: AbortSignal;
+}
 
+/**
+ * POSTs `formData` and resolves with the final ScanCreateResponse, over
+ * XMLHttpRequest rather than fetch for two reasons: (1) real upload progress
+ * (xhr.upload.onprogress, driven by bytes actually sent over the wire) has no
+ * fetch equivalent, and (2) incremental access to a still-arriving response
+ * body via xhr.responseText/onprogress, which is what makes reading the
+ * backend's NDJSON stage stream possible before the request completes.
+ *
+ * The backend (lmd.api.progress) only streams NDJSON when the request sends
+ * `Accept: application/x-ndjson`; each line is one JSON object with an
+ * `event` field ("stage" | "panel_done" | "result" | "error"). Anything that
+ * isn't a stage/panel_done event settles the promise.
+ */
+function postFormDataWithProgress(
+  url: string,
+  formData: FormData,
+  options: ScanProgressOptions,
+  networkErrorMessage: string,
+): Promise<ScanCreateResponse> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${PROXY_BASE}/scans`);
-    xhr.responseType = "json";
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Accept", "application/x-ndjson");
+    xhr.responseType = "text";
+
+    let cursor = 0;
+    let settled = false;
 
     if (options.onUploadProgress) {
       xhr.upload.onprogress = (event) => {
@@ -168,13 +187,66 @@ export async function createScanWithProgress(
       };
     }
 
-    xhr.onload = () => {
-      const payload = xhr.response;
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(payload as ScanCreateResponse);
-      } else {
-        reject(parseApiErrorBody(xhr.status, payload));
+    function drainAvailableLines() {
+      const text = xhr.responseText;
+      let newlineAt = text.indexOf("\n", cursor);
+      while (newlineAt !== -1 && !settled) {
+        const line = text.slice(cursor, newlineAt).trim();
+        cursor = newlineAt + 1;
+        newlineAt = text.indexOf("\n", cursor);
+        if (!line) continue;
+
+        let parsed: ScanStreamEvent;
+        try {
+          parsed = JSON.parse(line) as ScanStreamEvent;
+        } catch {
+          continue; // a line split across two onprogress ticks is handled by the cursor, not here
+        }
+
+        if (parsed.event === "result") {
+          settled = true;
+          const { event: _event, ...result } = parsed;
+          resolve(result as ScanCreateResponse);
+        } else if (parsed.event === "error") {
+          settled = true;
+          reject(parseApiErrorBody(parsed.status, { detail: parsed.detail }));
+        } else {
+          options.onStage?.(parsed);
+        }
       }
+    }
+
+    // NDJSON lines arrive across multiple onprogress ticks as the backend's
+    // pipeline runs -- this is the only place a still-streaming body can be
+    // read incrementally with XMLHttpRequest.
+    xhr.onprogress = () => {
+      if (!settled) drainAvailableLines();
+    };
+
+    xhr.onload = () => {
+      if (settled) return;
+      drainAvailableLines();
+      if (settled) return;
+      // The stream ended with no terminal event -- either a validation error
+      // that never opened the NDJSON stream (backend returns plain JSON for
+      // that), or the connection closed early.
+      if (xhr.status >= 200 && xhr.status < 300) {
+        reject(
+          new ApiError({
+            status: xhr.status,
+            kind: "generic",
+            message: "The scan stream ended without a result.",
+          }),
+        );
+        return;
+      }
+      let payload: unknown = null;
+      try {
+        payload = JSON.parse(xhr.responseText);
+      } catch {
+        // not JSON (e.g. an upstream proxy error page) -- parseApiErrorBody falls back cleanly
+      }
+      reject(parseApiErrorBody(xhr.status, payload));
     };
 
     xhr.onerror = () => {
@@ -182,7 +254,7 @@ export async function createScanWithProgress(
         new ApiError({
           status: 0,
           kind: "backend_unreachable",
-          message: "Network error while uploading the image.",
+          message: networkErrorMessage,
         }),
       );
     };
@@ -197,6 +269,25 @@ export async function createScanWithProgress(
 
     xhr.send(formData);
   });
+}
+
+/**
+ * Same request as createScan, but streams real progress: upload percentage
+ * from xhr.upload.onprogress, then per-stage events from the backend's NDJSON
+ * pipeline stream (backend/lmd/api/progress.py) via onStage.
+ */
+export async function createScanWithProgress(
+  params: CreateScanParams,
+  options: ScanProgressOptions = {},
+): Promise<ScanCreateResponse> {
+  const image = await resizeForUpload(params.image);
+  const formData = buildScanFormData({ ...params, image });
+  return postFormDataWithProgress(
+    `${PROXY_BASE}/scans`,
+    formData,
+    options,
+    "Network error while uploading the image.",
+  );
 }
 
 export interface CreateMultiScanParams {
@@ -230,11 +321,12 @@ function buildMultiScanFormData(params: CreateMultiScanParams): FormData {
 }
 
 /** POST /api/v1/scans/multi — accepts up to 4 panel images, processes them
- *  sequentially on the server, returns same shape as createScanWithProgress
- *  plus panel_sources and panels_processed. */
+ *  sequentially on the server (one panel's memory at a time), returns same
+ *  shape as createScanWithProgress plus panel_sources and panels_processed.
+ *  Streams per-panel stage events the same way createScanWithProgress does. */
 export async function createMultiScanWithProgress(
   params: CreateMultiScanParams,
-  options: { onUploadProgress?: (percent: number) => void; signal?: AbortSignal } = {},
+  options: ScanProgressOptions = {},
 ): Promise<ScanCreateResponse> {
   const [front, back, side, other] = await Promise.all([
     params.front ? resizeForUpload(params.front) : Promise.resolve(undefined),
@@ -243,46 +335,12 @@ export async function createMultiScanWithProgress(
     params.other ? resizeForUpload(params.other) : Promise.resolve(undefined),
   ]);
   const formData = buildMultiScanFormData({ ...params, front, back, side, other });
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${PROXY_BASE}/scans/multi`);
-    xhr.responseType = "json";
-
-    if (options.onUploadProgress) {
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          options.onUploadProgress!(Math.round((event.loaded / event.total) * 100));
-        }
-      };
-    }
-
-    xhr.onload = () => {
-      const payload = xhr.response;
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(payload as ScanCreateResponse);
-      } else {
-        reject(parseApiErrorBody(xhr.status, payload));
-      }
-    };
-
-    xhr.onerror = () => {
-      reject(
-        new ApiError({
-          status: 0,
-          kind: "backend_unreachable",
-          message: "Network error while uploading multi-panel images.",
-        }),
-      );
-    };
-
-    if (options.signal) {
-      if (options.signal.aborted) { xhr.abort(); return; }
-      options.signal.addEventListener("abort", () => xhr.abort());
-    }
-
-    xhr.send(formData);
-  });
+  return postFormDataWithProgress(
+    `${PROXY_BASE}/scans/multi`,
+    formData,
+    options,
+    "Network error while uploading multi-panel images.",
+  );
 }
 
 /** GET /api/v1/scans/{scan_id} — unauthenticated (backend/lmd/api/scan.py:159). */

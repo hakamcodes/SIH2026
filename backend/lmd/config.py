@@ -17,6 +17,11 @@ load_dotenv(_REPO_ROOT / ".env")
 RULES_PATH = Path(os.environ.get("LMD_RULES_PATH", _REPO_ROOT / "packages" / "rules" / "lmd_rules.v1.json"))
 RULESET_VERSION = os.environ.get("LMD_RULESET_VERSION", "v1")
 
+# Cap on panels per /scans/multi request. Each panel's OCR pass peaks RSS on
+# its own, so this bounds worst-case memory on Render's 512MB free tier --
+# not just an API sanity check.
+LMD_MAX_PANELS = int(os.environ.get("LMD_MAX_PANELS", "4"))
+
 # Firestore is the only persistence backend now (CLAUDE.md deploy decision:
 # Render's disk is ephemeral, so cases/scans/evidence must live off-box).
 # FIRESTORE_CREDENTIALS_JSON holds the *contents* of a Firebase service

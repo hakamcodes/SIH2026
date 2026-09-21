@@ -63,11 +63,28 @@ async function proxy(request: NextRequest, path: string[]): Promise<NextResponse
     );
   }
 
-  const responseBody = await response.arrayBuffer();
   const responseHeaders = new Headers();
   const contentType = response.headers.get("content-type");
   if (contentType) responseHeaders.set("content-type", contentType);
 
+  // The scan endpoints stream NDJSON stage-progress events while the
+  // pipeline is still running (backend/lmd/api/progress.py) -- buffering the
+  // whole body here with arrayBuffer() would silently turn that into one
+  // burst at the end, defeating the entire feature. Pass the stream through
+  // untouched, and forward the two headers that keep it unbuffered end to
+  // end (nginx-style proxies respect X-Accel-Buffering; no-store here stops
+  // this route's own fetch cache from doing the buffering instead).
+  if (contentType?.includes("application/x-ndjson")) {
+    const accelBuffering = response.headers.get("x-accel-buffering");
+    if (accelBuffering) responseHeaders.set("x-accel-buffering", accelBuffering);
+    responseHeaders.set("cache-control", "no-store, no-transform");
+    return new NextResponse(response.body, {
+      status: response.status,
+      headers: responseHeaders,
+    });
+  }
+
+  const responseBody = await response.arrayBuffer();
   return new NextResponse(responseBody, {
     status: response.status,
     headers: responseHeaders,

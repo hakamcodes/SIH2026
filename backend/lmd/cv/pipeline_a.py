@@ -27,12 +27,15 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import lru_cache
 
 import cv2
 import numpy as np
 from rapidocr import RapidOCR
+
+from lmd.api.memory import rss_mb
 
 from .stages.calibration import CalibrationResult, detect_calibration_card
 from .stages.font_metrics import FontMetrics, measure_ink_height
@@ -51,6 +54,12 @@ logger = logging.getLogger(__name__)
 # concurrent calls (e.g. two scans processed in overlapping worker threads)
 # since nothing in this module has verified the session is thread-safe.
 _ENGINE_LOCK = threading.Lock()
+
+# (stage_key, human_label, optional_detail) -- called from a worker thread
+# (this module never runs on the event loop), so a caller wiring this up to
+# ProgressReporter.stage must use its threadsafe emit path, not touch asyncio
+# directly here.
+OnStage = Callable[[str, str, str | None], None]
 
 
 @dataclass
@@ -152,10 +161,17 @@ def _rescale_calibration(calibration: CalibrationResult, inv_scale: float) -> Ca
     )
 
 
-def run_pipeline_a(image: np.ndarray) -> PipelineAResult:
+def run_pipeline_a(image: np.ndarray, on_stage: OnStage | None = None) -> PipelineAResult:
     """image: BGR ndarray (e.g. from cv2.imread). Never raises on ordinary
     low-quality input -- a field that cannot be read is simply absent from
     `fields`, per the extraction contract's "absence, never invented" rule.
+
+    on_stage, when given, is called exactly once per internal stage
+    (calibration, glare, ocr, roi_retry) regardless of which branch is
+    taken below, so a caller computing a fixed total stage count for a
+    progress bar gets a count that always matches reality. Default None
+    preserves this function's exact prior behaviour for every existing
+    caller/test.
     """
     t_start = time.perf_counter()
     working, scale = _prepare_working_frame(image)
@@ -167,10 +183,14 @@ def run_pipeline_a(image: np.ndarray) -> PipelineAResult:
         calibration = _rescale_calibration(calibration, inv_scale)
     px_per_mm = calibration.px_per_mm if calibration else None
     t_calibration = time.perf_counter() - t0
+    if on_stage:
+        on_stage("calibration", "Detecting calibration card", "found" if calibration else "not found")
 
     t0 = time.perf_counter()
     masked = apply_glare_mask(working)
     t_glare = time.perf_counter() - t0
+    if on_stage:
+        on_stage("glare", "Masking glare", None)
 
     t0 = time.perf_counter()
     engine = _get_engine()
@@ -184,13 +204,19 @@ def run_pipeline_a(image: np.ndarray) -> PipelineAResult:
         # the cls session is never loaded, so requesting it per-call would
         # error rather than no-op.
         raw_result = engine(masked, use_det=True, use_cls=False, use_rec=True)
+    masked = None  # the ROI retry loop below crops from `image`, not `masked`
     t_ocr = time.perf_counter() - t0
+    box_count = len(raw_result.txts) if raw_result is not None and raw_result.txts else 0
+    if on_stage:
+        on_stage("ocr", "Reading text (RapidOCR)", f"{box_count} text box(es) found")
 
     fields: list[TextField] = []
     if raw_result is None or not raw_result.txts:
+        if on_stage:
+            on_stage("roi_retry", "Re-reading low-confidence text", "0 boxes re-read")
         logger.info(
-            "pipeline_a: scale=%.3f calibration=%.2fs glare=%.2fs ocr=%.2fs roi_retries=0 total=%.2fs (no boxes)",
-            scale, t_calibration, t_glare, t_ocr, time.perf_counter() - t_start,
+            "pipeline_a: scale=%.3f calibration=%.2fs glare=%.2fs ocr=%.2fs roi_retries=0 total=%.2fs rss=%.1fMB (no boxes)",
+            scale, t_calibration, t_glare, t_ocr, time.perf_counter() - t_start, rss_mb(),
         )
         return PipelineAResult(fields=[], calibration=calibration)
 
@@ -228,8 +254,10 @@ def run_pipeline_a(image: np.ndarray) -> PipelineAResult:
             )
         )
 
+    if on_stage:
+        on_stage("roi_retry", "Re-reading low-confidence text", f"{roi_retry_count} box(es) re-read")
     logger.info(
-        "pipeline_a: scale=%.3f calibration=%.2fs glare=%.2fs ocr=%.2fs roi_retries=%d(%.2fs) total=%.2fs",
-        scale, t_calibration, t_glare, t_ocr, roi_retry_count, t_roi_total, time.perf_counter() - t_start,
+        "pipeline_a: scale=%.3f calibration=%.2fs glare=%.2fs ocr=%.2fs roi_retries=%d(%.2fs) total=%.2fs rss=%.1fMB",
+        scale, t_calibration, t_glare, t_ocr, roi_retry_count, t_roi_total, time.perf_counter() - t_start, rss_mb(),
     )
     return PipelineAResult(fields=fields, calibration=calibration)

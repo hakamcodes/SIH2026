@@ -23,13 +23,12 @@ import {
   type CreateMultiScanParams,
 } from "@/lib/api";
 import { describeUnknownError } from "@/lib/errors";
+import type { ScanStageEvent, ScanStreamEvent } from "@/lib/types";
 import { useBackendReady } from "@/lib/use-backend-ready";
 import { cn } from "@/lib/utils";
 
 import { CameraCapture } from "./camera-capture";
 import { ScanProcessingPanel, type ScanProcessingPhase } from "./scan-processing-panel";
-
-const CAPTION_ROTATE_MS = 3400;
 
 const COMMODITY_CATEGORIES = [
   "biscuits",
@@ -85,7 +84,7 @@ export function ScanUploadForm() {
   const [processingPhase, setProcessingPhase] = useState<ScanProcessingPhase | null>(null);
   const [uploadPercent, setUploadPercent] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [captionIndex, setCaptionIndex] = useState(0);
+  const [stages, setStages] = useState<ScanStageEvent[]>([]);
   const [form, setForm] = useState<ScanFormState>({
     scanDate: today(),
     commodityCategory: "",
@@ -125,15 +124,6 @@ export function ScanUploadForm() {
     return () => clearInterval(interval);
   }, [processingPhase]);
 
-  useEffect(() => {
-    if (processingPhase !== "processing") return;
-    const interval = setInterval(
-      () => setCaptionIndex((i) => i + 1),
-      CAPTION_ROTATE_MS,
-    );
-    return () => clearInterval(interval);
-  }, [processingPhase]);
-
   const hasExtraPanels = Object.keys(panelFiles).length > 0;
 
   async function handleSubmit(event: React.FormEvent) {
@@ -144,12 +134,15 @@ export function ScanUploadForm() {
     setSubmitError(null);
     setUploadPercent(0);
     setElapsedSeconds(0);
-    setCaptionIndex(0);
+    setStages([]);
     setProcessingPhase("uploading");
 
     const onUploadProgress = (percent: number) => {
       setUploadPercent(percent);
       if (percent >= 100) setProcessingPhase("processing");
+    };
+    const onStage = (event: ScanStreamEvent) => {
+      if (event.event === "stage") setStages((prev) => [...prev, event]);
     };
 
     try {
@@ -166,7 +159,7 @@ export function ScanUploadForm() {
           commodityIsImported: form.isImported,
           commodityIsExempt: form.isExempt,
         };
-        result = await createMultiScanWithProgress(params, { onUploadProgress });
+        result = await createMultiScanWithProgress(params, { onUploadProgress, onStage });
       } else {
         result = await createScanWithProgress(
           {
@@ -177,7 +170,7 @@ export function ScanUploadForm() {
             commodityIsImported: form.isImported,
             commodityIsExempt: form.isExempt,
           },
-          { onUploadProgress },
+          { onUploadProgress, onStage },
         );
       }
 
@@ -206,7 +199,7 @@ export function ScanUploadForm() {
         phase={processingPhase}
         uploadPercent={uploadPercent}
         elapsedSeconds={elapsedSeconds}
-        captionIndex={captionIndex}
+        stages={stages}
       />
     );
   }

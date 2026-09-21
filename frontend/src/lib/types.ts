@@ -323,6 +323,49 @@ export interface ReportGenerateResponse {
   download_url: string;
 }
 
+// -- NDJSON stage-progress streaming (lmd.api.progress) --------------------
+/** One pipeline stage completing, streamed while POST /api/v1/scans or
+ *  /scans/multi is still in flight. `index`/`total` are exact, not a guess --
+ *  the backend always emits the same fixed set of stage events regardless of
+ *  which branch a scan takes (e.g. a skipped vision call still emits one
+ *  "vision" event), so total is fixed before the stream opens. */
+export interface ScanStageEvent {
+  event: "stage";
+  stage: string;
+  label: string;
+  index: number;
+  total: number;
+  /** Present for scans/multi events tied to one panel; absent for
+   *  whole-request stages (rules, compress, persist, ...). */
+  panel?: string;
+  detail?: string;
+}
+
+/** One panel finished processing (scans/multi only). */
+export interface ScanPanelDoneEvent {
+  event: "panel_done";
+  panel: string;
+  fields: number;
+}
+
+/** Terminal failure mid-stream. The HTTP status was already committed as 200
+ *  when the stream opened, so a real failure has to be signalled in-band
+ *  instead of as an HTTP error status. */
+export interface ScanErrorEvent {
+  event: "error";
+  status: number;
+  detail: string;
+}
+
+/** Terminal success: exactly the plain-JSON ScanCreateResponse, tagged. */
+export type ScanResultEvent = ScanCreateResponse & { event: "result" };
+
+export type ScanStreamEvent =
+  | ScanStageEvent
+  | ScanPanelDoneEvent
+  | ScanErrorEvent
+  | ScanResultEvent;
+
 /** POST /api/v1/rules/reload response. */
 export interface RulesReloadResponse {
   reloaded: boolean;
