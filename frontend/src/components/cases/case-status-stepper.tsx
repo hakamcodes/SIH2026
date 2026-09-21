@@ -66,52 +66,54 @@ export function CaseStatusStepper({ status, caseId, onChanged }: CaseStatusStepp
 
   return (
     <div>
-      <ol className="flex flex-wrap items-center gap-0">
-        {PRIMARY_PATH.map((step, index) => {
-          const entry = CASE_STATUS_VOCAB[step];
-          const Icon = entry.icon;
-          const done = index < currentIndex;
-          const active = index === currentIndex;
-          const reachable = index === currentIndex + 1;
-          const isLast = index === PRIMARY_PATH.length - 1;
+      <div className="overflow-x-auto pb-1">
+        <ol className="flex items-center gap-0 min-w-max">
+          {PRIMARY_PATH.map((step, index) => {
+            const entry = CASE_STATUS_VOCAB[step];
+            const Icon = entry.icon;
+            const done = index < currentIndex;
+            const active = index === currentIndex;
+            const reachable = index === currentIndex + 1;
+            const isLast = index === PRIMARY_PATH.length - 1;
 
-          return (
-            <li key={step} className="flex items-center">
-              <button
-                type="button"
-                disabled={!reachable || pending !== null}
-                onClick={() => advance(step)}
-                title={reachable ? `Advance to ${entry.label}` : entry.label}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-sm border px-2 py-1.5 text-xs font-medium transition-colors duration-[var(--dur-fast)]",
-                  active &&
-                    "animate-pulse border-transparent bg-gradient-primary text-primary-foreground shadow-md",
-                  done && "border-[var(--verdict-compliant-border)] bg-[var(--verdict-compliant-bg)] text-[var(--verdict-compliant-fg)]",
-                  !active && !done && "border-dashed border-border text-fg-subtle",
-                  reachable && !active && "border-border bg-surface text-foreground hover:border-border-strong hover:shadow-sm",
-                  reachable && "cursor-pointer",
-                  !reachable && "cursor-default",
+            return (
+              <li key={step} className="flex items-center">
+                <button
+                  type="button"
+                  disabled={!reachable || pending !== null}
+                  onClick={() => advance(step)}
+                  title={reachable ? `Advance to ${entry.label}` : entry.label}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-sm border px-2 py-1.5 text-xs font-medium transition-colors duration-[var(--dur-fast)]",
+                    active &&
+                      "animate-pulse border-transparent bg-gradient-primary text-primary-foreground shadow-md",
+                    done && "border-[var(--verdict-compliant-border)] bg-[var(--verdict-compliant-bg)] text-[var(--verdict-compliant-fg)]",
+                    !active && !done && "border-dashed border-border text-fg-subtle",
+                    reachable && !active && "border-border bg-surface text-foreground hover:border-border-strong hover:shadow-sm",
+                    reachable && "cursor-pointer",
+                    !reachable && "cursor-default",
+                  )}
+                >
+                  {pending === step ? (
+                    <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />
+                  ) : done ? (
+                    <Check className="size-3.5 shrink-0" aria-hidden="true" />
+                  ) : (
+                    <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+                  )}
+                  {entry.label}
+                </button>
+                {!isLast && (
+                  <span
+                    aria-hidden="true"
+                    className={cn("mx-1 h-0.5 w-4 rounded-full transition-colors duration-[var(--dur)]", done ? "bg-gradient-primary" : "bg-border")}
+                  />
                 )}
-              >
-                {pending === step ? (
-                  <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />
-                ) : done ? (
-                  <Check className="size-3.5 shrink-0" aria-hidden="true" />
-                ) : (
-                  <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-                )}
-                {entry.label}
-              </button>
-              {!isLast && (
-                <span
-                  aria-hidden="true"
-                  className={cn("mx-1 h-0.5 w-4 rounded-full transition-colors duration-[var(--dur)]", done ? "bg-gradient-primary" : "bg-border")}
-                />
-              )}
-            </li>
-          );
-        })}
-      </ol>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
 
       {status === "UNDER_REVIEW" && (
         <div className="mt-2">

@@ -8,6 +8,7 @@ reading when the key is missing).
 from __future__ import annotations
 
 import asyncio
+import gc
 import logging
 import os
 import time
@@ -183,12 +184,27 @@ async def create_scan(
     
     images_base64 = {
         "original": encode_base64(compress_for_storage(stored_original_bytes, "JPEG")),
-        "overlay": encode_base64(compress_for_storage(encode_png(overlay_image), "PNG")),
+        # Tighter budget than the 600 KB/1600px default: the overlay is a
+        # display/download convenience (the frontend draws live SVG boxes
+        # over the "original" JPEG for the main view), so a smaller, palette
+        # PNG is enough and keeps the Firestore doc smaller.
+        "overlay": encode_base64(
+            compress_for_storage(
+                encode_png(overlay_image), "PNG", max_bytes=250_000, max_dimension_px=900, palette=True
+            )
+        ),
     }
     overlay_image = None  # release overlay array after encoding
 
     ocr_boxes = _serialize_ocr_boxes(pipeline_a_result)
+    image_width, image_height = cv_image.shape[1], cv_image.shape[0]
+    image_sha256 = sha256_bytes(image_bytes_for_hash)
+    cv_image = None  # released; only its already-extracted shape/hash are needed below
 
+    # Write the scan doc without the (large) image fields first, then patch
+    # them in with a second, smaller write -- keeps the peak in-memory dict
+    # (protobuf-serialized by the Firestore client) from holding both base64
+    # image strings plus the rest of the scan document at once.
     scan_id = repository.create_scan(
         conn,
         scan_date=effective_scan_date,
@@ -196,17 +212,19 @@ async def create_scan(
         ruleset_version=config.RULESET_VERSION,
         result=result,
         extraction_envelope=envelope,
-        images_base64=images_base64,
+        images_base64=None,
         ocr_boxes=ocr_boxes,
     )
+    repository.update_scan_images(conn, scan_id, images_base64)
+    images_base64 = None  # released after the second write
 
-    return {
+    response = {
         "scan_id": scan_id,
         "overall_verdict": result.overall_verdict.value,
         "extraction_envelope": envelope,
-        "image_sha256": sha256_bytes(image_bytes_for_hash),
-        "image_width": cv_image.shape[1],
-        "image_height": cv_image.shape[0],
+        "image_sha256": image_sha256,
+        "image_width": image_width,
+        "image_height": image_height,
         "ocr_boxes": ocr_boxes,
         "barcodes": barcodes,
         "calibration": _serialize_calibration(pipeline_a_result),
@@ -223,6 +241,11 @@ async def create_scan(
             for rid, r in result.rule_results.items()
         },
     }
+    # Reclaim the NumPy arrays/base64 strings from this scan immediately --
+    # Python's generational GC doesn't guarantee it before the next request,
+    # and there is no RAM headroom to spare on Render's 512 MB free tier.
+    gc.collect()
+    return response
 
 
 @router.get("/scans/{scan_id}")

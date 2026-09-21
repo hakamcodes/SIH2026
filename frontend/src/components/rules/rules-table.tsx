@@ -87,68 +87,115 @@ export function RulesTable({ categoryFilter, severityFilter, refreshKey = 0 }: R
   }
 
   return (
-    <div className="overflow-x-auto">
-      <Table className="table-fixed">
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[9%] min-w-24">Rule</TableHead>
-            <TableHead className="w-[13%] min-w-28">Category</TableHead>
-            <TableHead className="w-[30%]">Description</TableHead>
-            <TableHead className="w-[11%] min-w-24">Severity</TableHead>
-            <TableHead className="w-[11%] min-w-24">In force from</TableHead>
-            <TableHead className="w-[26%]">Legal basis</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {filtered.map((rule, index) => {
-            const category = CATEGORY_VOCAB[rule.category as RuleCategory];
-            return (
-              <TableRow
-                key={rule.rule_id}
-                style={{ "--stagger": index } as React.CSSProperties}
-                className="stagger-item align-top transition-[color,background-color,border-color,box-shadow,transform] duration-[var(--dur-fast)] hover:-translate-y-px hover:shadow-sm"
+    <>
+      {/* ── Mobile card list (< md) ──────────────────────────────────── */}
+      <ul className="divide-y divide-border md:hidden">
+        {filtered.map((rule, index) => {
+          const category = CATEGORY_VOCAB[rule.category as RuleCategory];
+          return (
+            <li
+              key={rule.rule_id}
+              className="stagger-item px-4 py-3"
+              style={{ "--stagger": index } as React.CSSProperties}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-mono text-xs font-medium text-foreground">{rule.rule_id}</span>
+                <SeverityLabel severity={rule.severity} />
+              </div>
+              <p className="mt-1.5 text-sm text-foreground">{rule.description}</p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {category ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-fg-muted">
+                    <category.icon className="size-3 shrink-0" aria-hidden="true" />
+                    {category.label}
+                  </span>
+                ) : (
+                  <span className="text-xs text-fg-muted">{rule.category}</span>
+                )}
+                <span className="font-mono text-2xs text-fg-subtle">{formatDate(rule.effective_from)}</span>
+              </div>
+              <p
+                className={cn(
+                  "mt-1 text-xs",
+                  rule.citation_verified ? "text-fg-muted" : "text-fg-subtle italic",
+                )}
               >
-                <TableCell className="whitespace-normal break-words font-mono text-xs">
-                  {rule.rule_id}
-                </TableCell>
-                <TableCell className="whitespace-normal break-words">
-                  {category ? (
-                    <span className="inline-flex items-center gap-1.5 text-xs text-fg-muted">
-                      <category.icon className="size-3.5 shrink-0" aria-hidden="true" />
-                      {category.label}
-                    </span>
-                  ) : (
-                    rule.category
-                  )}
-                </TableCell>
-                <TableCell className="whitespace-normal break-words text-sm">
-                  {rule.description}
-                </TableCell>
-                <TableCell className="whitespace-normal break-words">
-                  <SeverityLabel severity={rule.severity} />
-                </TableCell>
-                <TableCell className="whitespace-normal break-words font-mono text-xs text-fg-muted">
-                  {formatDate(rule.effective_from)}
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "whitespace-normal break-words text-xs",
-                    rule.citation_verified ? "text-fg-muted" : "text-fg-subtle italic",
-                  )}
-                  title={rule.citation_verified ? undefined : "Illustrative — not yet verified against a primary source"}
+                {rule.legal_basis}
+                {!rule.citation_verified && (
+                  <span className="ml-1 inline-block rounded-sm border border-border px-1 py-0.5 text-2xs not-italic">
+                    illustrative
+                  </span>
+                )}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* ── Desktop table (≥ md) ─────────────────────────────────────── */}
+      <div className="hidden md:block overflow-x-auto">
+        <Table className="table-fixed">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[9%] min-w-24">Rule</TableHead>
+              <TableHead className="w-[13%] min-w-28">Category</TableHead>
+              <TableHead className="w-[30%]">Description</TableHead>
+              <TableHead className="w-[11%] min-w-24">Severity</TableHead>
+              <TableHead className="w-[11%] min-w-24">In force from</TableHead>
+              <TableHead className="w-[26%]">Legal basis</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((rule, index) => {
+              const category = CATEGORY_VOCAB[rule.category as RuleCategory];
+              return (
+                <TableRow
+                  key={rule.rule_id}
+                  style={{ "--stagger": index } as React.CSSProperties}
+                  className="stagger-item align-top transition-[color,background-color,border-color,box-shadow,transform] duration-[var(--dur-fast)] hover:-translate-y-px hover:shadow-sm"
                 >
-                  {rule.legal_basis}
-                  {!rule.citation_verified && (
-                    <span className="ml-1.5 inline-block rounded-sm border border-border px-1 py-0.5 text-2xs not-italic">
-                      illustrative
-                    </span>
-                  )}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+                  <TableCell className="whitespace-normal break-words font-mono text-xs">
+                    {rule.rule_id}
+                  </TableCell>
+                  <TableCell className="whitespace-normal break-words">
+                    {category ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-fg-muted">
+                        <category.icon className="size-3.5 shrink-0" aria-hidden="true" />
+                        {category.label}
+                      </span>
+                    ) : (
+                      rule.category
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-normal break-words text-sm">
+                    {rule.description}
+                  </TableCell>
+                  <TableCell className="whitespace-normal break-words">
+                    <SeverityLabel severity={rule.severity} />
+                  </TableCell>
+                  <TableCell className="whitespace-normal break-words font-mono text-xs text-fg-muted">
+                    {formatDate(rule.effective_from)}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "whitespace-normal break-words text-xs",
+                      rule.citation_verified ? "text-fg-muted" : "text-fg-subtle italic",
+                    )}
+                    title={rule.citation_verified ? undefined : "Illustrative — not yet verified against a primary source"}
+                  >
+                    {rule.legal_basis}
+                    {!rule.citation_verified && (
+                      <span className="ml-1.5 inline-block rounded-sm border border-border px-1 py-0.5 text-2xs not-italic">
+                        illustrative
+                      </span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   );
 }

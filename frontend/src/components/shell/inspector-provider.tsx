@@ -17,6 +17,11 @@ import {
  * audit-log actor. The UI must therefore never imply a verified login.
  */
 const STORAGE_KEY = "lmd.inspector";
+// Render's free tier spins the backend down after 15 minutes idle. A
+// best-effort ping every 10 minutes from this always-mounted provider keeps
+// the instance warm while a judge is browsing, without a hard dependency on
+// any single page staying open.
+const KEEP_ALIVE_INTERVAL_MS = 10 * 60 * 1000;
 
 export interface InspectorIdentity {
   inspectorId: string;
@@ -61,6 +66,15 @@ export function InspectorProvider({ children }: { children: React.ReactNode }) {
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setState({ inspector: next, ready: true });
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetch("/api/lmd/health", { cache: "no-store" }).catch(() => {
+        // Best-effort ping only -- failures here are not surfaced anywhere.
+      });
+    }, KEEP_ALIVE_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, []);
 
   const setInspector = useCallback((next: InspectorIdentity | null) => {

@@ -96,23 +96,25 @@ export function ScanDetailView({ scanId }: { scanId: string }) {
   return (
     <div>
       <VerdictBanner verdict={data.overall_verdict} />
-      <div className="stagger-item shadow-panel mb-4 flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface-subtle px-4 py-3" style={{ "--stagger": 1 } as React.CSSProperties}>
+      <div className="stagger-item shadow-panel mb-4 flex flex-col gap-3 rounded-md border border-border bg-surface-subtle px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center" style={{ "--stagger": 1 } as React.CSSProperties}>
         <div className="flex-1 text-sm text-fg-muted">
           A report is produced after inspector review and a recorded reason to
           believe — it is not generated automatically from a raw scan.
         </div>
-        <Button
-          size="sm"
-          onClick={handleCreateCase}
-          disabled={!inspector || creatingCase}
-          className="gap-1.5 bg-gradient-cta text-accent-cta-foreground shadow-sm hover:shadow-md hover:-translate-y-px"
-        >
-          <FilePlus2 className="size-3.5" aria-hidden="true" />
-          {creatingCase ? "Creating case…" : "Create case for review"}
-        </Button>
-        {!inspector && (
-          <p className="text-2xs text-fg-subtle">Sign in with an inspector identity to create a case.</p>
-        )}
+        <div className="flex flex-col gap-1">
+          <Button
+            size="sm"
+            onClick={handleCreateCase}
+            disabled={!inspector || creatingCase}
+            className="gap-1.5 bg-gradient-cta text-accent-cta-foreground shadow-sm hover:shadow-md hover:-translate-y-px w-full sm:w-auto"
+          >
+            <FilePlus2 className="size-3.5" aria-hidden="true" />
+            {creatingCase ? "Creating case…" : "Create case for review"}
+          </Button>
+          {!inspector && (
+            <p className="text-2xs text-fg-subtle">Sign in with an inspector identity to create a case.</p>
+          )}
+        </div>
       </div>
       {createCaseError && (
         <div className="mb-4">

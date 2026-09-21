@@ -184,6 +184,7 @@ export default function DashboardPage() {
             ) : !data?.compliance_by_category || Object.keys(data.compliance_by_category).length === 0 ? (
               <p className="px-4 py-6 text-sm text-fg-muted text-center">No category data yet.</p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border">
@@ -241,6 +242,7 @@ export default function DashboardPage() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </PanelBody>
         </Panel>

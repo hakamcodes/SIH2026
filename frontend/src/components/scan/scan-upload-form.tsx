@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -23,6 +23,7 @@ import {
   type CreateMultiScanParams,
 } from "@/lib/api";
 import { describeUnknownError } from "@/lib/errors";
+import { useBackendReady } from "@/lib/use-backend-ready";
 import { cn } from "@/lib/utils";
 
 import { CameraCapture } from "./camera-capture";
@@ -64,6 +65,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export function ScanUploadForm() {
   const router = useRouter();
+  const { ready: backendReady, attempts: backendAttempts } = useBackendReady();
   const inputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [inputMode, setInputMode] = useState<InputMode>("upload");
@@ -75,6 +77,8 @@ export function ScanUploadForm() {
 
   // Extra panel images (back, side, other)
   const [panelFiles, setPanelFiles] = useState<Partial<Record<PanelSlot, File>>>({});
+  // Which extra panel slot (if any) currently has its camera open
+  const [panelCameraSlot, setPanelCameraSlot] = useState<PanelSlot | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -134,7 +138,7 @@ export function ScanUploadForm() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!file || submitting) return;
+    if (!file || submitting || !backendReady) return;
 
     setSubmitting(true);
     setSubmitError(null);
@@ -320,36 +324,66 @@ export function ScanUploadForm() {
             </div>
             {(["back", "side", "other"] as PanelSlot[]).map((slot) => {
               const slotFile = panelFiles[slot];
+              const cameraOpen = panelCameraSlot === slot;
               return (
-                <div key={slot} className="flex items-center gap-2 rounded-md border border-border bg-surface-subtle px-3 py-2">
-                  <span className="w-20 text-xs font-medium text-fg-muted shrink-0">{PANEL_LABELS[slot]}</span>
-                  {slotFile ? (
-                    <>
-                      <span className="flex-1 truncate font-mono text-2xs text-fg-muted">{slotFile.name}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 shrink-0"
-                        onClick={() => setPanelFile(slot, null)}
-                        aria-label={`Remove ${PANEL_LABELS[slot]}`}
-                      >
-                        <X className="size-3" />
-                      </Button>
-                    </>
-                  ) : (
-                    <label className="flex-1 cursor-pointer text-xs text-link hover:text-link-hover">
-                      + Add image
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png"
-                        className="sr-only"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) setPanelFile(slot, f);
-                        }}
-                      />
-                    </label>
+                <div key={slot} className="flex flex-col gap-2 rounded-md border border-border bg-surface-subtle px-3 py-2">
+                  {/* Slot header row */}
+                  <div className="flex items-center gap-2">
+                    <span className="w-20 text-xs font-medium text-fg-muted shrink-0">{PANEL_LABELS[slot]}</span>
+                    {slotFile ? (
+                      <>
+                        <span className="flex-1 truncate font-mono text-2xs text-fg-muted">{slotFile.name}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 shrink-0"
+                          onClick={() => setPanelFile(slot, null)}
+                          aria-label={`Remove ${PANEL_LABELS[slot]}`}
+                        >
+                          <X className="size-3" />
+                        </Button>
+                      </>
+                    ) : cameraOpen ? (
+                      <span className="flex-1 text-xs text-fg-muted">Camera active…</span>
+                    ) : (
+                      <div className="flex flex-1 items-center gap-2">
+                        {/* File picker */}
+                        <label className="cursor-pointer text-xs text-link hover:text-link-hover">
+                          + File
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png"
+                            className="sr-only"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) setPanelFile(slot, f);
+                            }}
+                          />
+                        </label>
+                        <span className="text-xs text-fg-subtle">or</span>
+                        {/* Camera button */}
+                        <button
+                          type="button"
+                          onClick={() => setPanelCameraSlot(slot)}
+                          className="inline-flex items-center gap-1 text-xs text-link hover:text-link-hover"
+                        >
+                          <Camera className="size-3" aria-hidden="true" />
+                          Camera
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Inline camera for this slot */}
+                  {cameraOpen && (
+                    <CameraCapture
+                      onCapture={(captured) => {
+                        setPanelFile(slot, captured);
+                        setPanelCameraSlot(null);
+                      }}
+                      onCancel={() => setPanelCameraSlot(null)}
+                    />
                   )}
                 </div>
               );
@@ -430,9 +464,15 @@ export function ScanUploadForm() {
           </label>
         </div>
 
+        {!backendReady && (
+          <p className="rounded-md border border-border bg-surface-subtle px-3 py-2 text-xs text-fg-muted">
+            Waking the analysis server — Render&apos;s free tier sleeps after 15 minutes of
+            inactivity (typically 30–60s){backendAttempts > 1 ? ` · attempt ${backendAttempts}` : ""}
+          </p>
+        )}
         <Button
           type="submit"
-          disabled={!file || submitting}
+          disabled={!file || submitting || !backendReady}
           className="w-full min-h-[52px] gap-1.5 bg-gradient-cta text-accent-cta-foreground shadow-sm transition-[box-shadow,transform] hover:shadow-md hover:-translate-y-px text-base"
         >
           <ScanLine className="size-4" aria-hidden="true" />

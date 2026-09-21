@@ -117,6 +117,19 @@ def create_scan(
     return scan_id
 
 
+def update_scan_images(client: Client, scan_id: str, images_base64: dict[str, str | None] | None) -> None:
+    """Second, smaller write that patches in the base64 image fields after
+    create_scan's initial doc write. Splitting this out keeps the peak
+    in-memory dict passed to the Firestore client from holding the whole
+    scan document plus both base64 image strings at once (512 MB Render
+    free-tier budget). A scan doc with images_base64={} is already a valid,
+    representable state (get_scan defaults it), so this call failing after a
+    successful create_scan degrades to "no images stored," not corruption."""
+    if not images_base64:
+        return
+    client.collection(_SCANS).document(scan_id).update({"images_base64": images_base64})
+
+
 def get_scan(client: Client, scan_id: str) -> dict | None:
     doc = client.collection(_SCANS).document(scan_id).get()
     if not doc.exists:

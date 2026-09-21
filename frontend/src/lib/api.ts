@@ -1,4 +1,5 @@
 import { ApiError, parseApiErrorBody } from "./errors";
+import { resizeForUpload } from "./image-utils";
 import type {
   CaseAuditResponse,
   CaseDetail,
@@ -125,16 +126,17 @@ function buildScanFormData(params: CreateScanParams): FormData {
   return formData;
 }
 
-export function createScan(
+export async function createScan(
   params: CreateScanParams,
   signal?: AbortSignal,
 ): Promise<ScanCreateResponse> {
   // FormData bodies must not get an explicit Content-Type: the browser sets
   // multipart/form-data with the correct boundary itself, and the proxy
   // route forwards that header through verbatim.
+  const image = await resizeForUpload(params.image);
   return apiFetch<ScanCreateResponse>("/scans", {
     method: "POST",
-    body: buildScanFormData(params),
+    body: buildScanFormData({ ...params, image }),
     signal,
   });
 }
@@ -146,11 +148,12 @@ export function createScan(
  * progress event. Used to show a genuine upload percentage before the
  * (unmeasurable) server-side OCR/rule-evaluation phase begins.
  */
-export function createScanWithProgress(
+export async function createScanWithProgress(
   params: CreateScanParams,
   options: { onUploadProgress?: (percent: number) => void; signal?: AbortSignal } = {},
 ): Promise<ScanCreateResponse> {
-  const formData = buildScanFormData(params);
+  const image = await resizeForUpload(params.image);
+  const formData = buildScanFormData({ ...params, image });
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -229,11 +232,17 @@ function buildMultiScanFormData(params: CreateMultiScanParams): FormData {
 /** POST /api/v1/scans/multi — accepts up to 4 panel images, processes them
  *  sequentially on the server, returns same shape as createScanWithProgress
  *  plus panel_sources and panels_processed. */
-export function createMultiScanWithProgress(
+export async function createMultiScanWithProgress(
   params: CreateMultiScanParams,
   options: { onUploadProgress?: (percent: number) => void; signal?: AbortSignal } = {},
 ): Promise<ScanCreateResponse> {
-  const formData = buildMultiScanFormData(params);
+  const [front, back, side, other] = await Promise.all([
+    params.front ? resizeForUpload(params.front) : Promise.resolve(undefined),
+    params.back ? resizeForUpload(params.back) : Promise.resolve(undefined),
+    params.side ? resizeForUpload(params.side) : Promise.resolve(undefined),
+    params.other ? resizeForUpload(params.other) : Promise.resolve(undefined),
+  ]);
+  const formData = buildMultiScanFormData({ ...params, front, back, side, other });
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();

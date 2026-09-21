@@ -17,26 +17,15 @@ from .deps import get_engine
 from .errors import register_error_handlers
 
 
-def _warm_ocr_engine() -> None:
-    # Constructing RapidOCR() only loads the ONNX model files; the first
-    # real inference call still pays extra one-time session/graph
-    # initialization cost on top of that (measured: ~10s slower than every
-    # call after it). Run one throwaway detect+cls+rec pass now so that
-    # cost lands at server startup, not on a demo's first upload.
-    import numpy as np
-
-    from lmd.cv.pipeline_a import _get_engine as get_ocr_engine
-
-    engine = get_ocr_engine()
-    engine(np.zeros((64, 64, 3), dtype=np.uint8), use_det=True, use_cls=True, use_rec=True)
-
-
 @asynccontextmanager
 async def _lifespan(app: FastAPI):  # noqa: ARG001 -- FastAPI lifespan signature
-    # RapidOCR's ONNX model load/first-inference and the rule-engine JSON
-    # load all cost real wall time; paying it once at startup instead of on
-    # the first request means a demo's first upload isn't the slowest one.
-    await asyncio.to_thread(_warm_ocr_engine)
+    # RapidOCR's ONNX det/cls/rec sessions are the single largest contributor
+    # to idle RSS (~200-350 MB) on Render's 512 MB free tier -- loading them
+    # here at boot pushed the process near the OOM ceiling before a single
+    # scan ever ran. lmd.cv.pipeline_a._get_engine is @lru_cache(maxsize=1),
+    # so leaving it unloaded costs only a ~10s one-time init on the first real
+    # scan, not every scan. Only the rule-engine JSON load happens at startup;
+    # a bad ruleset must still fail fast (CLAUDE.md invariant 3).
     await asyncio.to_thread(get_engine)
     yield
 
@@ -80,4 +69,13 @@ app.include_router(images.router)
 
 @app.get("/health")
 def health():
+    return {"status": "ok"}
+
+
+@app.get("/api/v1/health")
+def health_v1():
+    # The frontend's Next.js proxy rewrites /api/lmd/<path> to
+    # /api/v1/<path> (see route.ts), so the wake-up/keep-alive poll needs a
+    # health route under the versioned prefix -- Render's own health check
+    # keeps using unprefixed /health above.
     return {"status": "ok"}

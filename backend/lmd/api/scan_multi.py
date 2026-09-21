@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import logging
 import time
 from datetime import date
@@ -178,6 +179,7 @@ async def create_multi_scan(
             compress_for_storage(first_image_bytes, "JPEG")
         )
 
+    # See scan.py's create_scan for why the image write is split in two.
     scan_id = repository.create_scan(
         conn,
         scan_date=effective_scan_date,
@@ -185,11 +187,13 @@ async def create_multi_scan(
         ruleset_version=config.RULESET_VERSION,
         result=result,
         extraction_envelope=merged_envelope,
-        images_base64=images_base64,
+        images_base64=None,
         ocr_boxes=[],
     )
+    repository.update_scan_images(conn, scan_id, images_base64)
+    images_base64 = None
 
-    return {
+    response = {
         "scan_id": scan_id,
         "overall_verdict": result.overall_verdict.value,
         "extraction_envelope": merged_envelope,
@@ -211,3 +215,5 @@ async def create_multi_scan(
             for rid, r in result.rule_results.items()
         },
     }
+    gc.collect()
+    return response

@@ -13,7 +13,11 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn lmd.main:app --host 0.0.0.0 --port $PORT --workers 1 --no-access-log
+    # --limit-concurrency 1: a 512MB instance cannot hold two concurrent
+    # scans' pipeline arrays in memory -- queue the second request instead
+    # of letting it start and OOM the process.
+    startCommand: uvicorn lmd.main:app --host 0.0.0.0 --port $PORT --workers 1 --no-access-log --limit-concurrency 1
+    healthCheckPath: /health
     envVars:
       - key: PYTHONUTF8
         value: "1"

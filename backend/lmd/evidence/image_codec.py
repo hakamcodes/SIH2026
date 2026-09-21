@@ -26,6 +26,7 @@ def compress_for_storage(
     image_format: str | None = None,
     max_bytes: int = _MAX_STORED_BYTES,
     max_dimension_px: int = _MAX_DIMENSION_PX,
+    palette: bool = False,
 ) -> bytes:
     """Return image_bytes unchanged if already under max_bytes, otherwise
     downscale (and, for JPEG, step down quality) until it fits.
@@ -40,7 +41,11 @@ def compress_for_storage(
     document has two image fields (original + overlay) alongside its rule
     results, but a report PDF embeds both of those images *inside a single
     pdf_base64 field*, so it needs a much tighter per-image budget to leave
-    room for two images plus the rest of the document in one field."""
+    room for two images plus the rest of the document in one field.
+
+    palette=True converts a PNG to an adaptive 64-color palette before the
+    shrink loop -- opt-in because it loses color fidelity, appropriate for a
+    boxes-and-text overlay but not for evidence/report images."""
     if len(image_bytes) <= max_bytes:
         return image_bytes
 
@@ -67,8 +72,15 @@ def compress_for_storage(
             # minimum dimension, rather than a single resize pass that can
             # still land well over the ceiling (measured: 1.6MB at the
             # original resize target on a dense overlay).
+            if palette:
+                # Boxes-and-text overlays have very few distinct colors, so
+                # an adaptive 64-color palette shrinks the PNG far more than
+                # resizing alone -- opt-in only, so evidence/report callers
+                # that need full color fidelity are unaffected.
+                current = im.convert("P", palette=Image.ADAPTIVE, colors=64)
+            else:
+                current = im
             data = image_bytes
-            current = im
             for _ in range(8):
                 buf = io.BytesIO()
                 current.save(buf, format=fmt, optimize=True)
