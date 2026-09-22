@@ -33,6 +33,7 @@ from functools import lru_cache
 
 import cv2
 import numpy as np
+import rapidocr.main as _rapidocr_main
 from rapidocr import RapidOCR
 
 from lmd.api.memory import rss_mb
@@ -81,6 +82,27 @@ class PipelineAResult:
         return " ".join(f.text for f in self.fields)
 
 
+class _NullTextClassifier:
+    """Stand-in for rapidocr's TextClassifier, swapped in only while
+    constructing the shared engine below.
+
+    Global.use_cls=False was meant to drop the angle-classifier session, but
+    rapidocr's own RapidOCR._initialize() (main.py) calls
+    `TextClassifier(cfg.Cls)` unconditionally -- use_cls is only checked
+    later, at inference time, to decide whether to *run* it. So the real
+    TextClassifier.__init__ always builds a full onnxruntime.InferenceSession
+    for the cls ONNX weights regardless of this flag, which is what pushed a
+    single scan over the 512MB Render cap (confirmed via prod logs still
+    loading ch_ppocr_mobile_v2.0_cls_mobile.onnx). Swapping in this no-op
+    class for the duration of the constructor call skips that load entirely.
+    Safe because with use_cls=False, RapidOCR.__call__ never touches
+    self.text_cls -- it's only reached behind `if self.use_cls`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+
 @lru_cache(maxsize=1)
 def _get_engine() -> RapidOCR:
     # Caps onnxruntime's intra/inter-op thread pools, shared across the det/
@@ -89,18 +111,23 @@ def _get_engine() -> RapidOCR:
     # each session spin up its own per-core native thread pool, which is
     # what pushed a single-request scan over the 512MB instance cap.
     #
-    # Global.use_cls=False skips loading the angle-classifier ONNX session
-    # entirely -- package photos in this app's flow are upright (camera
-    # capture or a straight upload), not rotated text, so the classifier
-    # buys nothing here. Dropping the third session is the single biggest
-    # lever on the 512MB Render free-tier cap.
-    return RapidOCR(
-        params={
-            "Global.use_cls": False,
-            "EngineConfig.onnxruntime.intra_op_num_threads": 1,
-            "EngineConfig.onnxruntime.inter_op_num_threads": 1,
-        }
-    )
+    # Global.use_cls=False disables *running* the angle classifier -- package
+    # photos in this app's flow are upright (camera capture or a straight
+    # upload), not rotated text, so the classifier buys nothing here. The
+    # _NullTextClassifier swap below is what actually stops its ONNX weights
+    # from being loaded into memory in the first place.
+    original_text_classifier = _rapidocr_main.TextClassifier
+    _rapidocr_main.TextClassifier = _NullTextClassifier
+    try:
+        return RapidOCR(
+            params={
+                "Global.use_cls": False,
+                "EngineConfig.onnxruntime.intra_op_num_threads": 1,
+                "EngineConfig.onnxruntime.inter_op_num_threads": 1,
+            }
+        )
+    finally:
+        _rapidocr_main.TextClassifier = original_text_classifier
 
 
 def _enhance_roi(gray_crop: np.ndarray) -> np.ndarray:
