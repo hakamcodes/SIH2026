@@ -20,12 +20,17 @@ a mandatory "reason to believe" review step before any case can be escalated.
 
 No mocked screens. No dead buttons. No fabricated numbers.
 
+<p align="center">
+  <img src="img/01-landing-inspector-signin.png" alt="Landing page and inspector sign-in" width="900">
+</p>
+
 ---
 
 ## Table of contents
 
 - [Why this exists](#why-this-exists)
 - [How it works](#how-it-works)
+- [Walkthrough](#walkthrough)
 - [What's implemented](#whats-implemented)
 - [Tech stack](#tech-stack)
 - [Project structure](#project-structure)
@@ -94,6 +99,94 @@ Two things this pipeline deliberately refuses to do: guess a physical scale
 without a calibration reference in frame, and accept a numeric legal value
 (MRP, net quantity) from a single source. A confidently wrong digit is worse
 than "could not read."
+
+## Walkthrough
+
+The screenshots below are captured from the deployed prototype
+(`metraguard.vercel.app`), in the order an inspector would actually use it.
+
+### 1. Scan a package and get an instant verdict
+
+The inspector uploads or captures a label photo. The system runs both
+extraction pipelines, renders every OCR box on the image with a
+confidence-coded overlay, lists every extracted field with its confidence
+score, and produces one of the three verdicts — here, `NON_COMPLIANT`,
+because at least one blocking rule failed.
+
+<p align="center">
+  <img src="img/06-scan-review-annotated.png" alt="Scan review: annotated overlay and extracted fields" width="900">
+</p>
+
+Every rule that was evaluated is shown — not just the ones that failed —
+grouped by category, with its status, severity, the exact reasoning that
+fired it, and the precise sub-rule citation.
+
+<p align="center">
+  <img src="img/07-scan-review-rule-results.png" alt="Scan review: full per-rule results table with legal citations" width="900">
+</p>
+
+### 2. Every rule is data, not hidden code
+
+The full 29-rule ruleset — category, description, severity, the date it came
+into force, and its legal basis — is browsable in the app itself, loaded
+straight from `packages/rules/lmd_rules.v1.json` via `GET /api/v1/rules`.
+Nothing here is a hardcoded `if` statement.
+
+<p align="center">
+  <img src="img/04-ruleset-reference.png" alt="Ruleset reference page, loaded live from the rules JSON" width="900">
+</p>
+
+### 3. A scan becomes a case, and cases require a reason to believe
+
+A `NON_COMPLIANT` or `NEEDS_REVIEW` scan can be opened as a case. The case
+queue tracks every case's status, scan verdict and assigned inspector.
+
+<p align="center">
+  <img src="img/02-case-management.png" alt="Case management queue" width="900">
+</p>
+
+Inside a case, the status can only advance to Confirmed violation, Escalated
+or Closed once the inspector attaches evidence **and** records a written
+reason to believe — the hard gate required by Section 15(4) of the Legal
+Metrology Act, 2009. Skipping it is not a UI restriction only; the API
+returns HTTP 422 for the same reason.
+
+<p align="center">
+  <img src="img/08-case-review-evidence-gate.png" alt="Case review with evidence chain and the reason-to-believe gate" width="900">
+</p>
+
+### 4. A certifiable, hash-chained violation report
+
+Once a case is reviewed, it produces a PDF violation report carrying the
+case ID, the scan ID, the overall verdict, the exact legal basis per failed
+rule, a SHA-256 evidence chain, and a Section 63 BSA 2023 certificate — plus
+a QR code back to the case record.
+
+<p align="center">
+  <img src="img/09-violation-report-pdf.png" alt="Generated PDF violation report" width="900">
+</p>
+
+### 5. Aggregate visibility, without pretending to be a supervisor dashboard
+
+One counters page: total scans, verdict distribution, case funnel by
+status, and which rules and declarations fail most often across every scan
+run so far. This is the only dashboard tier in scope for this prototype.
+
+<p align="center">
+  <img src="img/03-dashboard.png" alt="Dashboard with scan and case counters" width="900">
+</p>
+
+### 6. What this system honestly does not do
+
+A dedicated, permanently visible page states plainly what the system is
+not — not a legal adjudication, not a weighment device, not proof of
+court-admissibility, not a live eMaap integration, not a marketplace
+crawler, and not a font-compliance verifier without a calibration
+reference. This isn't a caveat buried in a README; it's live in the app.
+
+<p align="center">
+  <img src="img/05-known-limitations.png" alt="Known limitations page, surfaced live in the app" width="900">
+</p>
 
 ## What's implemented
 
@@ -198,4 +291,4 @@ generated report, and does not integrate with eMaap. The full, itemised list
 of what this build does and does not claim — including measured OCR failure
 modes on dot-matrix and curved surfaces — lives in
 [LEGAL_DISCLAIMERS.md](LEGAL_DISCLAIMERS.md) and is surfaced live at
-`/limitations` in the running app.
+`/limitations` in the running app (screenshot above).

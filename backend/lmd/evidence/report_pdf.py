@@ -170,15 +170,16 @@ def generate_report(
             ]
         )
     )
-    story.append(Table([[cover_table, _qr_image(f"LMD-CASE:{case_id}")]], colWidths=[150 * mm, 35 * mm]))
+    qr_block = [_qr_image(f"LMD-CASE:{case_id}"), Paragraph("Scan to verify case ID", small)]
+    story.append(Table([[cover_table, qr_block]], colWidths=[150 * mm, 35 * mm]))
     story.append(Spacer(1, 12))
 
     # --- Section 2: Executive Summary ---------------------------------
     story.append(Paragraph("1. Executive Summary", h2))
     story.append(
         Paragraph(
-            f"On {scan['scan_date']}, a compliance scan (source: {scan['scan_source']}) was "
-            f"performed and evaluated against ruleset {scan['ruleset_version']}. The automated "
+            f"On <b>{scan['scan_date']}</b>, a compliance scan (source: {scan['scan_source']}) was "
+            f"performed and evaluated against ruleset <b>{scan['ruleset_version']}</b>. The automated "
             f"pre-screening result was <b>{scan['overall_verdict']}</b>. This report is advisory "
             "pre-screening output for inspector review, not a legal determination.",
             body,
@@ -310,8 +311,9 @@ def generate_report(
             ]
         )
     # Widths sum to 170mm (A4 minus 20mm margins each side); Message keeps
-    # the largest share since it holds the longest text.
-    rule_table = Table(rule_rows, colWidths=[20 * mm, 25 * mm, 20 * mm, 22 * mm, 83 * mm], repeatRows=1)
+    # the largest share since it holds the longest text. Category is wide
+    # enough to hold "COMPLETENESS" (the longest category name) on one line.
+    rule_table = Table(rule_rows, colWidths=[20 * mm, 32 * mm, 18 * mm, 20 * mm, 80 * mm], repeatRows=1)
     rule_table.setStyle(
         TableStyle(
             [
@@ -357,7 +359,7 @@ def generate_report(
         Paragraph(
             "[ SYSTEM-GENERATED -- NOT A DIGITAL SIGNATURE CERTIFICATE (DSC) ]<br/>"
             "Inspector Signature Zone: ____________________<br/>"
-            f"Date: {generation_ts[:10]}",
+            "Date: ____________________",
             body,
         )
     )
