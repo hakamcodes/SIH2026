@@ -37,6 +37,7 @@ export type ApiErrorKind =
   | "reason_to_believe_required"
   | "not_found"
   | "backend_unreachable"
+  | "server_out_of_memory"
   | "generic";
 
 export class ApiError extends Error {

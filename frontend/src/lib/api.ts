@@ -178,6 +178,16 @@ function postFormDataWithProgress(
 
     let cursor = 0;
     let settled = false;
+    // Set once any stage/panel_done event arrives, i.e. the backend actually
+    // started the CV pipeline for this request (as opposed to failing before
+    // it ever got there). On Render's 512MB free tier the process gets
+    // OOM-killed mid-scan with no error event -- the connection just drops --
+    // so a mid-stream failure here is almost always that, not a generic bug.
+    let scanStarted = false;
+    const OOM_MESSAGE =
+      "The server ran out of memory while scanning (Render's free-tier 512MB limit). " +
+      "This is a hosting limit, not a bug in the scan itself. Try again with a smaller " +
+      "image, or scan one panel at a time instead of all at once.";
 
     if (options.onUploadProgress) {
       xhr.upload.onprogress = (event) => {
@@ -211,6 +221,7 @@ function postFormDataWithProgress(
           settled = true;
           reject(parseApiErrorBody(parsed.status, { detail: parsed.detail }));
         } else {
+          scanStarted = true;
           options.onStage?.(parsed);
         }
       }
@@ -234,10 +245,16 @@ function postFormDataWithProgress(
         reject(
           new ApiError({
             status: xhr.status,
-            kind: "generic",
-            message: "The scan stream ended without a result.",
+            kind: scanStarted ? "server_out_of_memory" : "generic",
+            message: scanStarted ? OOM_MESSAGE : "The scan stream ended without a result.",
           }),
         );
+        return;
+      }
+      // 502/503/504 here is Render's proxy reporting the app process died --
+      // on the free tier that is overwhelmingly the OOM killer, not a bug.
+      if (scanStarted && [502, 503, 504].includes(xhr.status)) {
+        reject(new ApiError({ status: xhr.status, kind: "server_out_of_memory", message: OOM_MESSAGE }));
         return;
       }
       let payload: unknown = null;
@@ -251,11 +268,9 @@ function postFormDataWithProgress(
 
     xhr.onerror = () => {
       reject(
-        new ApiError({
-          status: 0,
-          kind: "backend_unreachable",
-          message: networkErrorMessage,
-        }),
+        scanStarted
+          ? new ApiError({ status: 0, kind: "server_out_of_memory", message: OOM_MESSAGE })
+          : new ApiError({ status: 0, kind: "backend_unreachable", message: networkErrorMessage }),
       );
     };
 

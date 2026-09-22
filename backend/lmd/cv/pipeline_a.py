@@ -124,6 +124,18 @@ def _get_engine() -> RapidOCR:
                 "Global.use_cls": False,
                 "EngineConfig.onnxruntime.intra_op_num_threads": 1,
                 "EngineConfig.onnxruntime.inter_op_num_threads": 1,
+                # onnxruntime's CPU arena grows to the largest allocation it
+                # has ever served and never shrinks for the life of the
+                # session. Since _get_engine's session is a process-wide
+                # singleton (lru_cache), that growth is permanent -- a
+                # multi-panel scan's second image inherits the first image's
+                # peak instead of starting fresh, which is what pushed a
+                # two-panel scan over the 512MB Render cap even though a
+                # single-panel scan fit. Disabling the arena makes each
+                # inference call use plain malloc/free instead, so
+                # release_to_os()'s malloc_trim(0) between panels can
+                # actually reclaim it.
+                "EngineConfig.onnxruntime.enable_cpu_mem_arena": False,
             }
         )
     finally:
