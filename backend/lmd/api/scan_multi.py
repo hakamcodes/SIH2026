@@ -242,6 +242,7 @@ async def _run_multi_scan(
         extraction_envelope=merged_envelope,
         images_base64=None,
         ocr_boxes=ocr_boxes,
+        panel_sources=panel_sources,
     )
     repository.update_scan_images(conn, scan_id, images_base64)
     images_base64 = None

@@ -225,6 +225,10 @@ export interface ScanDetail {
   images_base64: { original?: string; overlay?: string };
   ocr_boxes: OcrBox[];
   rule_results: RuleResultRow[];
+  /** Non-empty only for a scan created via /api/v1/scans/multi -- which
+   *  panel (front/back/side/other) each top-level field's winning value
+   *  came from. */
+  panel_sources?: Record<string, string>;
 }
 
 export interface Case {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, Camera, ImageUp, Layers, ScanLine, X } from "lucide-react";
+import { AlertTriangle, CalendarClock, Camera, ImageUp, Layers, ScanLine, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import {
   type CreateMultiScanParams,
 } from "@/lib/api";
 import { describeUnknownError } from "@/lib/errors";
+import { assessImageQuality } from "@/lib/image-utils";
 import type { ScanStageEvent, ScanStreamEvent } from "@/lib/types";
 import { useBackendReady } from "@/lib/use-backend-ready";
 import { cn } from "@/lib/utils";
@@ -73,11 +74,13 @@ export function ScanUploadForm() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [qualityWarnings, setQualityWarnings] = useState<string[]>([]);
 
   // Extra panel images (back, side, other)
   const [panelFiles, setPanelFiles] = useState<Partial<Record<PanelSlot, File>>>({});
   // Which extra panel slot (if any) currently has its camera open
   const [panelCameraSlot, setPanelCameraSlot] = useState<PanelSlot | null>(null);
+  const [panelQualityWarnings, setPanelQualityWarnings] = useState<Partial<Record<PanelSlot, string[]>>>({});
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -96,10 +99,16 @@ export function ScanUploadForm() {
   const acceptFile = useCallback((next: File | null) => {
     setFile(next);
     setSubmitError(null);
+    setQualityWarnings([]);
     setPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return next ? URL.createObjectURL(next) : null;
     });
+    // Advisory only -- never blocks the upload, just tells the user up
+    // front why a scan might come back mostly NEEDS_REVIEW.
+    if (next) {
+      assessImageQuality(next).then((report) => setQualityWarnings(report.warnings));
+    }
   }, []);
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
@@ -116,6 +125,17 @@ export function ScanUploadForm() {
       else delete next[slot];
       return next;
     });
+    setPanelQualityWarnings((prev) => {
+      const next = { ...prev };
+      delete next[slot];
+      return next;
+    });
+    if (f) {
+      assessImageQuality(f).then((report) => {
+        if (report.warnings.length === 0) return;
+        setPanelQualityWarnings((prev) => ({ ...prev, [slot]: report.warnings }));
+      });
+    }
   }
 
   useEffect(() => {
@@ -298,6 +318,17 @@ export function ScanUploadForm() {
           </div>
         )}
 
+        {qualityWarnings.length > 0 && (
+          <div className="flex flex-col gap-1.5 rounded-md border border-[var(--verdict-needs-review-border)] bg-[var(--verdict-needs-review-bg)] px-3 py-2 text-xs text-[var(--verdict-needs-review-fg)]">
+            {qualityWarnings.map((w, i) => (
+              <p key={i} className="flex items-start gap-1.5">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                <span>{w}</span>
+              </p>
+            ))}
+          </div>
+        )}
+
         {/* Camera capture */}
         {inputMode === "camera" && (
           <CameraCapture
@@ -377,6 +408,17 @@ export function ScanUploadForm() {
                       }}
                       onCancel={() => setPanelCameraSlot(null)}
                     />
+                  )}
+
+                  {(panelQualityWarnings[slot]?.length ?? 0) > 0 && (
+                    <div className="flex flex-col gap-1 rounded-sm border border-[var(--verdict-needs-review-border)] bg-[var(--verdict-needs-review-bg)] px-2 py-1.5 text-2xs text-[var(--verdict-needs-review-fg)]">
+                      {panelQualityWarnings[slot]!.map((w, i) => (
+                        <p key={i} className="flex items-start gap-1">
+                          <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden="true" />
+                          <span>{w}</span>
+                        </p>
+                      ))}
+                    </div>
                   )}
                 </div>
               );

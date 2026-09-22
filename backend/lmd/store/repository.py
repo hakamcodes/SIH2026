@@ -84,6 +84,7 @@ def create_scan(
     extraction_envelope: dict,
     images_base64: dict[str, str | None] | None = None,
     ocr_boxes: list[dict] | None = None,
+    panel_sources: dict[str, str] | None = None,
 ) -> str:
     scan_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
@@ -112,6 +113,9 @@ def create_scan(
             "ocr_boxes": _encode_ocr_boxes(ocr_boxes or []),
             "rule_results": rule_results,
             "created_at": created_at,
+            # Only non-empty for /scans/multi (which field came from which
+            # panel); a single-image scan has no panels to attribute.
+            "panel_sources": panel_sources or {},
         }
     )
     return scan_id
@@ -138,6 +142,7 @@ def get_scan(client: Client, scan_id: str) -> dict | None:
     scan.setdefault("images_base64", {})
     scan["ocr_boxes"] = _decode_ocr_boxes(scan.get("ocr_boxes") or [])
     scan.setdefault("rule_results", [])
+    scan.setdefault("panel_sources", {})
     return scan
 
 

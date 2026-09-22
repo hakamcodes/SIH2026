@@ -56,6 +56,7 @@ class Scan:
     extraction_envelope: dict = field(default_factory=dict)
     images_base64: dict[str, str] = field(default_factory=dict)
     created_at: str = ""
+    panel_sources: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

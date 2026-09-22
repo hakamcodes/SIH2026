@@ -178,7 +178,7 @@ export function ScanDetailView({ scanId }: { scanId: string }) {
         <PanelBody>
           {data.extraction_envelope ? (
             <>
-              <ExtractedFieldsPanel envelope={data.extraction_envelope} />
+              <ExtractedFieldsPanel envelope={data.extraction_envelope} panelSources={data.panel_sources} />
               <div className="mt-3">
                 <DisagreementBanner
                   ocrPipeline={data.extraction_envelope.ocr_pipeline}
