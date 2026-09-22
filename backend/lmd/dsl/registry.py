@@ -204,10 +204,23 @@ def get_standard_sizes(subtype: str) -> list:
 
 def get_second_schedule_categories() -> list[str]:
     """The commodity subtypes for which second_schedule_sizes.json encodes a
-    standard-sizes list -- used by lmd.engine.engine to build
-    system.second_schedule_list so that adding a category to the JSON
-    activates LM-M04a/LM-M04b for it with no code change."""
-    return list(_SECOND_SCHEDULE.get("sizes_g", {}).keys())
+    *gazette-verified* standard-sizes list -- used by lmd.engine.engine to
+    build system.second_schedule_list so that adding a verified category to
+    the JSON activates LM-M04a/LM-M04b (BLOCKER/MAJOR) for it with no code
+    change.
+
+    Subtypes marked _verified: false (paraphrased secondary-source sizes,
+    not the actual gazette text) are deliberately excluded here, so
+    LM-M04a/LM-M04b evaluate to NOT_APPLICABLE for them instead of firing a
+    BLOCKER off unverified data -- per second_schedule_sizes.json's own
+    _note and CLAUDE.md invariant 10 (never fabricate a legal threshold).
+    """
+    sizes = _SECOND_SCHEDULE.get("sizes_g", {})
+    return [
+        subtype
+        for subtype, entry in sizes.items()
+        if isinstance(entry, list) or entry.get("_verified") is True
+    ]
 
 
 FUNCTIONS: dict[str, Any] = {

@@ -54,22 +54,23 @@ def get_known_limitations() -> dict[str, Any]:
     the corresponding limitation here with no code change."""
     second_schedule = _load_json("second_schedule_sizes.json")
     font_tables = _load_json("rule7_font_tables.json")
-    citations = _load_json("citations.json")
 
     limitations: list[dict[str, str]] = []
 
     if second_schedule.get("_status") == "PARTIAL_SOURCE":
-        encoded = sorted(second_schedule.get("sizes_g", {}).keys())
+        sizes = second_schedule.get("sizes_g", {})
+        verified = sorted(k for k, v in sizes.items() if isinstance(v, list) or v.get("_verified") is True)
+        unverified = sorted(k for k, v in sizes.items() if isinstance(v, dict) and v.get("_verified") is False)
         limitations.append(
             {
                 "area": "second_schedule_sizes",
                 "status": second_schedule["_status"],
                 "detail": (
-                    f"Only {', '.join(encoded)} standard-size list(s) are gazette-sourced and enforced "
-                    "(LM-M04a/LM-M04b). Other Second Schedule categories (bread, milk powder, soaps, "
-                    "detergent, paints, cement, rice, edible oil, bottled water) are not encoded pending "
-                    "the actual gazetted text; a paraphrased secondary source is not sufficient to "
-                    "encode a BLOCKER-severity size boundary."
+                    f"{', '.join(verified)} standard-size list(s) are gazette-sourced and enforce "
+                    f"LM-M04a/LM-M04b as a BLOCKER/MAJOR. {', '.join(unverified)} are transcribed from "
+                    "secondary research, not the gazette text itself; LM-M04a/LM-M04b evaluate to "
+                    "NOT_APPLICABLE for these, never a BLOCKER, until the actual Second Schedule gazette "
+                    "text replaces the paraphrased source."
                 ),
             }
         )
@@ -80,8 +81,10 @@ def get_known_limitations() -> dict[str, Any]:
                 "area": "rule7_font_tables",
                 "status": font_tables["status"],
                 "detail": (
-                    "Rule 7 Tables I/II minimum character-height thresholds (mm by pack size) are not "
-                    "sourced anywhere in this build. Any rule needing them returns NOT_EVALUABLE."
+                    "No gazette-verified copy of Rule 7 Tables I/II (minimum character-height "
+                    "thresholds in mm by pack size) exists in this build's research. Rather than "
+                    "invent a number, any rule needing them returns NOT_EVALUABLE with the reason "
+                    "surfaced, by design."
                 ),
             }
         )
@@ -92,25 +95,22 @@ def get_known_limitations() -> dict[str, Any]:
             "status": "UNWRITTEN",
             "detail": (
                 f"{', '.join(_RESERVED_UNWRITTEN_RULE_IDS)} are reserved (Rule 6(5) multi-pack, "
-                "Rule 6(7) GM-food declaration, cosmetic green/brown dot) but not authored -- no "
-                "concrete DSL condition spec exists yet without inventing legal logic."
+                "Rule 6(7) GM-food declaration, cosmetic green/brown dot) but not yet authored, "
+                "pending a concrete DSL condition spec."
             ),
         }
     )
 
-    do_not_cite = citations.get("do_not_cite", [])
-    if do_not_cite:
-        limitations.append(
-            {
-                "area": "citations_blocklist",
-                "status": "EXCLUDED",
-                "detail": (
-                    "The following citations were identified as simulated/fabricated during research "
-                    "red-teaming and are never surfaced by this system: "
-                    + "; ".join(c["citation"] for c in do_not_cite)
-                ),
-            }
-        )
+    limitations.append(
+        {
+            "area": "gsr_128e_2026",
+            "status": "NOT_REVIEWED",
+            "detail": (
+                "GSR 128(E), dated 13 February 2026, was not read during the underlying research and "
+                "may affect the encoded rules. Rule set has not been re-audited against it."
+            ),
+        }
+    )
 
     for detail in _FIXED_SCOPE_LIMITATIONS:
         limitations.append({"area": "scope", "status": "BY_DESIGN", "detail": detail})

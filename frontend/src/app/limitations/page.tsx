@@ -22,6 +22,11 @@ import { NOT_CLAIMS, WHAT_THIS_SYSTEM_IS } from "@/lib/disclaimers";
 export default function LimitationsPage() {
   const { data, error, loading, refetch } = useAsync((signal) => fetchLimitations(signal), []);
 
+  // "scope" entries duplicate the NOT_CLAIMS panel above verbatim (both
+  // trace to LEGAL_DISCLAIMERS.md); shown once here, filtered from the
+  // sentinel-driven panel below to avoid saying the same thing twice.
+  const dataGaps = data?.limitations.filter((item) => item.area !== "scope");
+
   return (
     <div>
       <PageHeader
@@ -58,8 +63,8 @@ export default function LimitationsPage() {
 
       <Panel>
         <PanelHeader
-          title="Known data gaps"
-          description="Built from the sentinel files in packages/rules/ via GET /api/v1/limitations — not a hand-maintained list."
+          title="Verified vs. unverified data"
+          description="Each item names the exact rule, data file, and gate that keeps unverified data from producing a false verdict — generated live from packages/rules/, not a hand-maintained list."
         />
         <PanelBody className="p-0">
           {loading && <LoadingRows rows={4} className="p-4" />}
@@ -76,9 +81,9 @@ export default function LimitationsPage() {
               className="m-4"
             />
           )}
-          {data && (
+          {dataGaps && (
             <ul>
-              {data.limitations.map((item, index) => (
+              {dataGaps.map((item, index) => (
                 <li
                   key={`${item.area}-${index}`}
                   className="flex items-start gap-3 border-b border-border px-4 py-3 last:border-b-0"
